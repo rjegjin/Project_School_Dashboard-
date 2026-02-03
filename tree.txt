@@ -1,0 +1,18 @@
+Project_HighSchool_apply_Dashboard/
+├─ generators
+│   ├─ generate_dashboard.py
+│   ├─ generate_table.py
+│   ├─ mokil_high_school_results_gen xls.py
+│   └─ mokil_high_school_results_gen.py
+└─ reports
+    ├─ main.html
+    ├─ 목일중_early_진학현황.html
+    ├─ 목일중_early_진학현황.xlsx
+    ├─ 목일중_late_진학현황.html
+    ├─ 목일중_late_진학현황.xlsx
+    ├─ 목일중_전기고_진학현황.html
+    ├─ 목일중_전기고_진학현황.xlsx
+    ├─ 목일중_전기고_컬러리포트.html
+    ├─ 목일중_후기고_진학현황.html
+    ├─ 목일중_후기고_진학현황.xlsx
+    └─ 목일중_후기고_컬러리포트.html
