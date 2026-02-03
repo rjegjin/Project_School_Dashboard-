@@ -1,9 +1,10 @@
 import gspread
-from oauth2client.service_account import ServiceAccountCredentials
+from google.oauth2.service_account import Credentials
 import pandas as pd
 import re
 import os
 from datetime import datetime
+from typing import List, Dict, Tuple, Any
 
 # ==========================================
 # 1. 설정 정보
@@ -16,15 +17,27 @@ OUTPUT_DIR = 'reports'
 OUTPUT_EARLY_HTML = os.path.join(OUTPUT_DIR, '목일중_전기고_진학현황.html')
 OUTPUT_LATE_HTML = os.path.join(OUTPUT_DIR, '목일중_후기고_진학현황.html')
 
+SCOPES = [
+    'https://www.googleapis.com/auth/spreadsheets',
+    'https://www.googleapis.com/auth/drive'
+]
+
 # ==========================================
 # 2. 데이터 가져오기 및 처리
 # ==========================================
-def fetch_all_data():
+def fetch_all_data() -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
+    """
+    구글 시트에서 데이터를 가져와 전기고/후기고 지원자 리스트로 분리하여 반환합니다.
+    """
     print("🔄 구글 시트에 연결 중입니다...")
-    scope = ['https://spreadsheets.google.com/feeds', 'https://www.googleapis.com/auth/drive']
-    creds = ServiceAccountCredentials.from_json_keyfile_name(KEY_FILE, scope)
-    client = gspread.authorize(creds)
-    doc = client.open_by_url(SHEET_URL)
+    
+    try:
+        creds = Credentials.from_service_account_file(KEY_FILE, scopes=SCOPES)
+        client = gspread.authorize(creds)
+        doc = client.open_by_url(SHEET_URL)
+    except Exception as e:
+        print(f"❌ 구글 시트 연결 실패: {e}")
+        return [], []
     
     worksheets = doc.worksheets()
     
@@ -40,7 +53,11 @@ def fetch_all_data():
             print(f"📑 데이터 수집 중: {sht.title}")
             
             # 전체 데이터 가져오기
-            rows = sht.get_all_values()
+            try:
+                rows = sht.get_all_values()
+            except Exception as e:
+                print(f"⚠️ 시트 데이터 읽기 실패 ({sht.title}): {e}")
+                continue
             
             # 데이터 유효성 검사 (행 개수 부족 시 패스)
             if len(rows) < 3: continue
@@ -118,7 +135,7 @@ def fetch_all_data():
                     
     return early_students, late_students
 
-def _clean_school_name(text, default_type):
+def _clean_school_name(text: str, default_type: str) -> str:
     """'O'나 '○'만 있으면 기본 유형명을, 텍스트가 있으면 텍스트를 반환"""
     text = text.strip()
     if text in ['O', 'o', '○', '0', '']:
@@ -128,7 +145,7 @@ def _clean_school_name(text, default_type):
 # ==========================================
 # 3. HTML 생성 (카드형 대시보드)
 # ==========================================
-def generate_html(student_list, title, filename):
+def generate_html(student_list: List[Dict[str, Any]], title: str, filename: str) -> None:
     cards_html = ""
     
     # 통계 계산

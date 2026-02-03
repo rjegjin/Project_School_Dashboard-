@@ -3,7 +3,8 @@ import requests
 import io
 import datetime
 import os
-import sys
+import re
+from typing import List, Dict, Any, Optional, Tuple
 # openpyxl 라이브러리 필수
 from openpyxl.styles import Alignment, Border, Side, Font, PatternFill
 from openpyxl.utils import get_column_letter
@@ -15,10 +16,10 @@ SHEET_URLS = {
 }
 
 class MokilReportGenerator:
-    def __init__(self, mode):
+    def __init__(self, mode: str):
         self.mode = mode
-        self.raw_df = None
-        self.classes = {i: {'g1': [], 'g2': [], 'g3': [], 'g4': []} for i in range(1, 16)}
+        self.raw_df: Optional[pd.DataFrame] = None
+        self.classes: Dict[int, Dict[str, List[Dict[str, str]]]] = {i: {'g1': [], 'g2': [], 'g3': [], 'g4': []} for i in range(1, 16)}
         self.counts = {'g1': 0, 'g2': 0, 'g3': 0, 'g4': 0}
         self.report_date = "" 
         
@@ -38,7 +39,7 @@ class MokilReportGenerator:
                 {'id': 'g3', 'label': '비평준화고 / 중점학교', 'kwd': ['비평준', '중점'], 'has_dept': False}
             ]
 
-    def set_date(self):
+    def set_date(self) -> None:
         print("-" * 50)
         if self.mode == 'early':
             default_date = "2025. 12. 3."
@@ -54,7 +55,7 @@ class MokilReportGenerator:
         print(f"   👉 기준일 설정 완료: {self.report_date}")
         print("-" * 50)
 
-    def fetch_google_sheet(self):
+    def fetch_google_sheet(self) -> bool:
         url = SHEET_URLS[self.mode]
         print(f"📥 [{self.mode.upper()}] 데이터 다운로드 중...", end=" ", flush=True)
         try:
@@ -67,8 +68,10 @@ class MokilReportGenerator:
             print(f"\n❌ [오류] 데이터 다운로드 실패: {e}")
             return False
 
-    def find_column_indices(self):
+    def find_column_indices(self) -> Optional[Tuple[int, Dict[str, Dict[str, int]]]]:
         df = self.raw_df
+        if df is None: return None
+        
         header_row_idx = -1
         for i, row in df.iterrows():
             row_str = " ".join([str(x) for x in row.values])
@@ -97,7 +100,7 @@ class MokilReportGenerator:
                 
         return header_row_idx, group_indices
 
-    def _detect_columns(self, name_idx, header_row):
+    def _detect_columns(self, name_idx: int, header_row: pd.Series) -> Dict[str, int]:
         info = {'name': name_idx, 'class': name_idx - 1, 'gender': name_idx + 1, 'school': name_idx + 2, 'dept': name_idx + 3, 'pass': -1}
         for offset in range(1, 7):
             check_idx = info['school'] + offset
@@ -108,7 +111,7 @@ class MokilReportGenerator:
                     break
         return info
 
-    def process(self):
+    def process(self) -> None:
         self.set_date()
         if not self.fetch_google_sheet(): return
         result = self.find_column_indices()
@@ -139,13 +142,12 @@ class MokilReportGenerator:
         self.save_html()
         self.save_excel()
 
-    def _parse_class(self, val):
-        import re
+    def _parse_class(self, val: str) -> Optional[int]:
         if '-' in val: return int(val.split('-')[1])
         nums = re.findall(r'\d+', val)
         return int(nums[-1]) if nums else None
 
-    def _clean_arts_school(self, name):
+    def _clean_arts_school(self, name: str) -> str:
         name = name.split('(')[0].strip()
         majors = ['미술', '음악', '무용', '연극', '영화', '성악', '작곡', '디자인', '만화']
         for m in majors:
