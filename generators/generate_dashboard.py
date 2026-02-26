@@ -9,7 +9,10 @@ from typing import List, Dict, Tuple, Any
 # ==========================================
 # 1. 설정 정보
 # ==========================================
-KEY_FILE = 'service_key.json'
+# 중앙 보안 폴더 확인 (C:\Projects\.secrets)
+_CENTRAL_KEY = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".secrets", "service_key.json"))
+KEY_FILE = _CENTRAL_KEY if os.path.exists(_CENTRAL_KEY) else 'service_key.json'
+
 SHEET_URL = 'https://docs.google.com/spreadsheets/d/1I_Cy5TZEnG0GmoThLPJJR7ZrXxUgXzsDDzu2zOtmjQI/edit?gid=294818561#gid=294818561'
 
 # 생성될 파일명

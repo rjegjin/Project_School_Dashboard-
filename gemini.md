@@ -5,6 +5,7 @@
 - Check `requirements.txt` to understand the dependency tree.
 
 ## 2. Development Standards
+- **Python Environment:** **CRITICAL** - Always use root `unified_venv` at `/home/rjegj/projects/unified_venv`. Do not create local venvs.
 - **Code Style**:
   - Follow PEP 8 guidelines for Python code.
   - **Type Hinting**: enforce strict type hints (`typing` module) for all new functions and class methods.
