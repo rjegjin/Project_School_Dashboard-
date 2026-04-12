@@ -31,7 +31,7 @@ SPREADSHEET_IDS = {
     "2026": "14VeC3Dxj0Ou5-ddWTwfzktuWfB0Eoz_2CcDwNZPVEH0",
 }
 
-SPECIAL_NAMES = ["사회통합전형", "특례", "보훈", "쌍둥이", "학폭", "교직원자녀", "장애"]
+SPECIAL_NAMES = ["사회통합전형", "특례", "보훈", "쌍둥이", "학폭", "교직원자녀", "장애", "다자녀(3인+)"]
 
 # 전기고 유형
 EARLY_TYPES = {"영재고", "과학고", "예술계고", "특성화고"}
@@ -49,6 +49,7 @@ CATEGORY_COLORS = {
     "학폭":        ("bg-red-100",    "text-red-700",    "border-red-200",    "bg-red-500"),
     "교직원자녀":  ("bg-green-100",  "text-green-700",  "border-green-200",  "bg-green-500"),
     "장애":        ("bg-orange-100", "text-orange-700", "border-orange-200", "bg-orange-500"),
+    "다자녀(3인+)": ("bg-teal-100",  "text-teal-700",   "border-teal-200",   "bg-teal-500"),
 }
 
 

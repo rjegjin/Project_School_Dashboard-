@@ -130,7 +130,7 @@ def fetch_tracking_snapshot() -> dict:
         }
     except Exception as e:
         log(f"  스냅샷 조회 실패: {e}")
-        return {}
+        return None  # None = 조회 실패, {} = 데이터 없음 구분
 
 
 def load_snapshot() -> dict:
@@ -267,8 +267,17 @@ def main():
     # 6단계: 변경 감지
     log("스냅샷 비교 중...")
     old_snap = load_snapshot()
-    new_snap = fetch_tracking_snapshot() if not dry_run else {"total": 0, "hash": "dry", "timestamp": datetime.now().isoformat()}
-    changes = detect_changes(old_snap, new_snap)
+    if dry_run:
+        new_snap = {"total": 0, "hash": "dry", "timestamp": datetime.now().isoformat()}
+    else:
+        new_snap = fetch_tracking_snapshot()
+
+    if new_snap is None:
+        # Quota 초과 등 조회 실패 — diff 건너뜀 (오보 방지)
+        log("  ⚠ 스냅샷 조회 실패 — 변경 감지 건너뜀 (오보 방지)")
+        changes = []
+    else:
+        changes = detect_changes(old_snap, new_snap)
 
     if changes:
         log(f"  변경 감지: {len(changes)}건")
@@ -279,18 +288,23 @@ def main():
 
     # 7단계: Telegram 알림
     should_notify = bool(changes) or force or bool(errors)
-    if should_notify and not dry_run:
+    if should_notify and not dry_run and new_snap is not None:
         log("Telegram 알림 전송...")
         msg = format_summary(new_snap, changes)
         if errors:
             msg += "\n\n⚠️ <b>오류 발생</b>\n" + "\n".join(f"  · {e}" for e in errors)
         send_telegram(msg)
         log("  ✅ 전송 완료")
+    elif force and new_snap is None and not dry_run:
+        # --force인데 스냅샷 실패 → 오류 알림만
+        log("Telegram 오류 알림 전송...")
+        send_telegram("⚠️ 고입 자동 동기화: 스냅샷 조회 실패 (API Quota 초과)\n동기화 자체는 완료됨")
+        log("  ✅ 전송 완료")
     elif not should_notify:
         log("변경 없음 — Telegram 생략")
 
-    # 스냅샷 저장
-    if new_snap and not dry_run:
+    # 스냅샷 저장 (조회 성공 시만)
+    if new_snap is not None and not dry_run:
         save_snapshot(new_snap)
 
     log("=" * 60)

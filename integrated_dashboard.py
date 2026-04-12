@@ -1285,13 +1285,13 @@ with tab11:
 
     report_dir = "reports"
     if os.path.exists(report_dir):
-        html_files = [f for f in os.listdir(report_dir) if f.endswith('.html')]
-        excel_files = [f for f in os.listdir(report_dir) if f.endswith('.xlsx')]
+        html_files = [f for f in os.listdir(report_dir) if f.endswith('.html') and not f.startswith('_')]
+        excel_files = [f for f in os.listdir(report_dir) if f.endswith('.xlsx') and not f.startswith('_')]
 
         if html_files or excel_files:
-            # 리포트 분류
-            early_reports   = sorted([f for f in html_files if '전기고' in f or f.startswith('목일중_early')])
-            late_reports    = sorted([f for f in html_files if '후기고' in f or f.startswith('목일중_late')])
+            # 리포트 분류 (_legacy/ 폴더 파일은 이미 위에서 제외됨)
+            early_reports   = sorted([f for f in html_files if '전기고' in f])
+            late_reports    = sorted([f for f in html_files if '후기고' in f])
             special_reports = sorted([f for f in html_files if '특별전형' in f])
             other_reports   = sorted([f for f in html_files if f not in early_reports + late_reports + special_reports])
 

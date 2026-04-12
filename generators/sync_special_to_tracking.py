@@ -26,6 +26,7 @@ SPREADSHEET_IDS = {
 }
 
 # 반별 시트 0-based 컬럼 인덱스 → 특별전형 이름
+# 다자녀 컬럼(20)은 add_dajanyeo_column.py 실행 후 추가됨
 SPECIAL_COLS = {
     4:  "사회통합전형",
     5:  "특례",
@@ -34,6 +35,7 @@ SPECIAL_COLS = {
     17: "학폭",
     18: "교직원자녀",
     19: "장애",
+    20: "다자녀(3인+)",
 }
 
 SPECIAL_NAMES = list(SPECIAL_COLS.values())  # 컬럼 순서 유지
