@@ -4,6 +4,7 @@ import io
 import datetime
 import os
 import re
+import webbrowser
 from typing import List, Dict, Any, Optional, Tuple
 # openpyxl 라이브러리 필수
 from openpyxl.styles import Alignment, Border, Side, Font, PatternFill
@@ -309,7 +310,15 @@ class MokilReportGenerator:
         
         with open(filename, 'w', encoding='utf-8') as f:
             f.write(full_html)
-        print(f"✅ [{self.mode.upper()}] HTML 파일 생성 완료: {os.path.abspath(filename)}")
+        abs_path = os.path.abspath(filename)
+        print(f"✅ [{self.mode.upper()}] HTML 파일 생성 완료: {abs_path}")
+
+        # 자동으로 브라우저에서 열기
+        try:
+            webbrowser.open(f'file://{abs_path}')
+            print(f"   🌐 브라우저에서 열기 중...")
+        except Exception as e:
+            print(f"   ⚠️ 자동 열기 실패: {e}")
 
     def save_excel(self):
         output_dir = "reports"

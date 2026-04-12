@@ -369,7 +369,7 @@ def generate_html(students: list, year: str, filepath: str):
         body {{ font-family: "Pretendard Variable", Pretendard, -apple-system, sans-serif;
                -webkit-print-color-adjust: exact; }}
         @media print {{
-            @page {{ size: A4 portrait; margin: 10mm; }}
+            @page {{ size: A4 landscape; margin: 10mm; }}
             .no-print {{ display: none !important; }}
             body {{ background: white; padding: 0; }}
             .shadow-sm {{ box-shadow: none; }}
@@ -384,7 +384,7 @@ def generate_html(students: list, year: str, filepath: str):
             <div>
                 <h1 class="text-2xl font-extrabold text-slate-800">{year} 특별전형 현황</h1>
                 <p class="text-xs text-slate-500 mt-1">
-                    사회통합전형 · 특례 · 보훈 · 쌍둥이 · 학폭 · 교직원자녀 · 장애
+                    사회통합전형 · 특례 · 보훈 · 쌍둥이 · 학폭 · 교직원자녀 · 장애 · 다자녀(3인+)
                 </p>
             </div>
             <div class="text-right">
