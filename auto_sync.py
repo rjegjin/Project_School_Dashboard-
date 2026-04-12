@@ -214,7 +214,7 @@ def main():
     errors = []
 
     # 1단계: 설문지 → 반별 시트
-    log("[1/3] 설문지 → 반별 시트 동기화...")
+    log("[1/5] 설문지 → 반별 시트 동기화...")
     ok, out = run_script(GENERATORS_DIR / "sync_form_to_class_sheets.py", ["2026"], dry_run)
     if not ok:
         errors.append(f"설문지 동기화 실패: {out[-200:]}")
@@ -223,7 +223,7 @@ def main():
         log("  ✅ 완료")
 
     # 2단계: 반별 → 입시_트래킹
-    log("[2/3] 반별 → 입시_트래킹 유형 동기화...")
+    log("[2/5] 반별 → 입시_트래킹 유형 동기화...")
     ok, out = run_script(GENERATORS_DIR / "sync_type_to_tracking.py", ["2026"], dry_run)
     if not ok:
         errors.append(f"유형 동기화 실패: {out[-200:]}")
@@ -231,8 +231,17 @@ def main():
     else:
         log("  ✅ 완료")
 
+    # 2.5단계: 반별 → 특별전형_트래킹
+    log("[3/5] 반별 → 특별전형_트래킹 동기화...")
+    ok, out = run_script(GENERATORS_DIR / "sync_special_to_tracking.py", ["2026"], dry_run)
+    if not ok:
+        errors.append(f"특별전형 동기화 실패: {out[-200:]}")
+        log(f"  ⚠ 실패 (계속 진행)")
+    else:
+        log("  ✅ 완료")
+
     # 3단계: 진행현황 갱신
-    log("[3/4] 트래킹 → 진행현황 시트 생성...")
+    log("[4/5] 트래킹 → 진행현황 시트 생성...")
     ok, out = run_script(GENERATORS_DIR / "build_progress_from_tracking.py", ["2026"], dry_run)
     if not ok:
         errors.append(f"진행현황 생성 실패: {out[-200:]}")
@@ -241,12 +250,19 @@ def main():
         log("  ✅ 완료")
 
     # 4단계: HTML 대시보드 생성
-    log("[4/4] 정적 HTML 대시보드 생성...")
+    log("[5/5] 정적 HTML 대시보드 생성...")
     ok, out = run_script(GENERATORS_DIR / "generate_dashboard.py", ["2026"], dry_run)
     if not ok:
         log(f"  ⚠ HTML 생성 실패 (계속 진행)")
     else:
         log("  ✅ reports/ HTML 3개 갱신 완료")
+
+    # 4.5단계: 특별전형 HTML 생성
+    ok, out = run_script(GENERATORS_DIR / "generate_special_report.py", ["2026"], dry_run)
+    if not ok:
+        log(f"  ⚠ 특별전형 HTML 생성 실패 (계속 진행)")
+    else:
+        log("  ✅ 특별전형_현황.html 갱신 완료")
 
     # 6단계: 변경 감지
     log("스냅샷 비교 중...")

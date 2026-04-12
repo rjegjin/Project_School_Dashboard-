@@ -1130,8 +1130,9 @@ with tab11:
     with col3:
         st.subheader("3️⃣ 대시보드 생성")
 
-        if st.button("📌 메인 대시보드 생성", use_container_width=True, key="tool_main_dashboard"):
-            st.info("고입 관리 시스템 메인 대시보드 및 담임 안내 시트")
+        st.warning("⚠️ 일회성 — 기존 📌 메인 탭(하이퍼링크·응답률) 전체 덮어씀")
+        if st.button("📌 메인 대시보드 생성 [일회성]", use_container_width=True, key="tool_main_dashboard"):
+            st.info("최초 1회 세팅 전용 — 이미 내용이 있으면 주의!")
             with st.spinner("메인 대시보드 생성 중..."):
                 try:
                     import subprocess
@@ -1203,7 +1204,8 @@ with tab11:
                     import subprocess
                     result = subprocess.run([
                         "/home/rjegj/projects/unified_venv/bin/python",
-                        "Project_HighSchool_apply_Dashboard/generators/generate_table.py"
+                        "Project_HighSchool_apply_Dashboard/generators/generate_table.py",
+                        "2026"
                     ], capture_output=True, text=True, timeout=60)
                     if result.returncode == 0:
                         st.success("✅ 컬러리포트 생성 완료!")
@@ -1288,13 +1290,16 @@ with tab11:
 
         if html_files or excel_files:
             # 리포트 분류
-            early_reports = sorted([f for f in html_files if '전기고' in f or f.startswith('목일중_early')])
-            late_reports = sorted([f for f in html_files if '후기고' in f or f.startswith('목일중_late')])
+            early_reports   = sorted([f for f in html_files if '전기고' in f or f.startswith('목일중_early')])
+            late_reports    = sorted([f for f in html_files if '후기고' in f or f.startswith('목일중_late')])
+            special_reports = sorted([f for f in html_files if '특별전형' in f])
+            other_reports   = sorted([f for f in html_files if f not in early_reports + late_reports + special_reports])
 
             # 탭 구성
-            tab_early, tab_late, tab_excel = st.tabs([
+            tab_early, tab_late, tab_special, tab_excel = st.tabs([
                 f"🎯 전기고 ({len(early_reports)})",
                 f"🍂 후기고 ({len(late_reports)})",
+                f"🏷️ 특별전형 ({len(special_reports)})",
                 f"📊 Excel ({len(excel_files)})"
             ])
 
@@ -1382,6 +1387,37 @@ with tab11:
                 else:
                     st.info("📄 후기고 리포트가 없습니다.\n[관리 도구]에서 생성하세요.")
 
+            # ─── 특별전형 리포트 탭 ───
+            with tab_special:
+                if special_reports:
+                    st.markdown("**📥 특별전형 현황 리포트 다운로드**")
+                    cols = st.columns(len(special_reports))
+                    for idx, report in enumerate(special_reports):
+                        with cols[idx]:
+                            report_path = os.path.join(report_dir, report)
+                            with open(report_path, 'rb') as f:
+                                st.download_button(
+                                    label=f"⬇️ {report}",
+                                    data=f.read(),
+                                    file_name=report,
+                                    mime="text/html",
+                                    use_container_width=True,
+                                    key=f"dl_special_{idx}"
+                                )
+                    st.divider()
+                    selected_special = st.selectbox("보기를 원하는 리포트 선택", special_reports, key="select_special")
+                    if selected_special:
+                        report_path = os.path.join(report_dir, selected_special)
+                        try:
+                            with open(report_path, 'r', encoding='utf-8') as f:
+                                html_content = f.read()
+                            with st.expander(f"📄 {selected_special} 내용 보기", expanded=True):
+                                st.components.v1.html(html_content, height=700, scrolling=True)
+                        except Exception as e:
+                            st.error(f"파일 읽기 실패: {e}")
+                else:
+                    st.info("🏷️ 특별전형 현황 리포트가 없습니다.\n[8️⃣ 특별전형 트래킹]에서 생성하세요.")
+
             # ─── Excel 파일 탭 ───
             with tab_excel:
                 if excel_files:
@@ -1406,6 +1442,65 @@ with tab11:
             st.info("📄 생성된 리포트가 없습니다.\n[관리 도구]에서 리포트를 생성하세요.")
     else:
         st.warning("⚠️ reports 폴더가 없습니다.")
+
+    st.divider()
+
+    # ── 특별전형 트래킹 ────────────────────────────────────────
+    st.subheader("8️⃣ 특별전형 트래킹")
+    st.caption(
+        "사회통합전형 · 특례 · 보훈 · 쌍둥이 · 학폭 · 교직원자녀 · 장애 — "
+        "반별 시트(301~314) 특별전형 컬럼 → **특별전형_트래킹** 시트 동기화 후 HTML 리포트 생성"
+    )
+
+    sp_col1, sp_col2 = st.columns(2)
+
+    with sp_col1:
+        if st.button("🔁 특별전형 동기화 (반별→트래킹)", use_container_width=True, key="tool_special_sync"):
+            with st.spinner("특별전형_트래킹 시트 갱신 중..."):
+                try:
+                    import subprocess
+                    result = subprocess.run([
+                        "/home/rjegj/projects/unified_venv/bin/python",
+                        "/home/rjegj/projects/Project_HighSchool_apply_Dashboard/generators/sync_special_to_tracking.py",
+                        "2026"
+                    ], capture_output=True, text=True, timeout=120)
+                    if result.returncode == 0:
+                        st.success("✅ 특별전형_트래킹 시트 갱신 완료!")
+                        st.code(result.stdout, language="text")
+                    else:
+                        st.error(f"❌ 실패: {result.stderr}")
+                except Exception as e:
+                    st.error(f"❌ 오류: {str(e)}")
+
+    with sp_col2:
+        if st.button("📊 특별전형 현황 HTML 생성", use_container_width=True, key="tool_special_report"):
+            with st.spinner("특별전형 HTML 리포트 생성 중..."):
+                try:
+                    import subprocess
+                    result = subprocess.run([
+                        "/home/rjegj/projects/unified_venv/bin/python",
+                        "/home/rjegj/projects/Project_HighSchool_apply_Dashboard/generators/generate_special_report.py",
+                        "2026"
+                    ], capture_output=True, text=True, timeout=120)
+                    if result.returncode == 0:
+                        st.success("✅ 특별전형_현황.html 생성 완료!")
+                        st.code(result.stdout, language="text")
+                        # 다운로드 버튼
+                        special_html_path = os.path.join("reports", "특별전형_현황.html")
+                        if os.path.exists(special_html_path):
+                            with open(special_html_path, "rb") as f:
+                                st.download_button(
+                                    label="⬇️ 특별전형_현황.html 다운로드",
+                                    data=f.read(),
+                                    file_name="특별전형_현황.html",
+                                    mime="text/html",
+                                    use_container_width=True,
+                                    key="dl_special_report",
+                                )
+                    else:
+                        st.error(f"❌ 실패: {result.stderr}")
+                except Exception as e:
+                    st.error(f"❌ 오류: {str(e)}")
 
     st.divider()
 
