@@ -56,13 +56,23 @@
 ```
 [cron 07:30 평일]
 auto_sync.py
-  ├── 1단계: sync_form_to_class_sheets.py  (설문지 → 반별 시트 301~314)
-  ├── 2단계: sync_type_to_tracking.py       (반별 시트 → 입시_트래킹 유형/지원학교)
-  └── 3단계: build_progress_from_tracking.py (입시_트래킹 → 입시 진행 현황)
+  ├── 1단계: sync_form_to_class_sheets.py   (설문지 → 반별 시트 301~314)
+  ├── 2단계: sync_type_to_tracking.py        (반별 시트 → 입시_트래킹 유형/지원학교)
+  ├── 3단계: build_progress_from_tracking.py (입시_트래킹 → 입시 진행 현황)
+  └── 4단계: generate_dashboard.py           (입시_트래킹 → reports/ HTML 3개 갱신)
 
 [수동, 합불 발표 후]
 generate_final_sheets.py                    (입시_트래킹 최종 → 전기고_최종 / 후기고_최종)
 ```
+
+---
+
+### `reports/` (정적 HTML 출력)
+| 파일 | 생성 스크립트 | 내용 |
+|------|--------------|------|
+| `전기고_현황.html` | `generators/generate_dashboard.py` | 영재고/과학고/예술계고/특성화고 카드 |
+| `후기고_현황.html` | `generators/generate_dashboard.py` | 자사고/외고/비평준화고/일반고 카드 |
+| `전체_현황.html`  | `generators/generate_dashboard.py` | 전체 (유형 필터 버튼 포함) |
 
 ---
 

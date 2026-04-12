@@ -232,7 +232,7 @@ def main():
         log("  ✅ 완료")
 
     # 3단계: 진행현황 갱신
-    log("[3/3] 트래킹 → 진행현황 시트 생성...")
+    log("[3/4] 트래킹 → 진행현황 시트 생성...")
     ok, out = run_script(GENERATORS_DIR / "build_progress_from_tracking.py", ["2026"], dry_run)
     if not ok:
         errors.append(f"진행현황 생성 실패: {out[-200:]}")
@@ -240,7 +240,15 @@ def main():
     else:
         log("  ✅ 완료")
 
-    # 4단계: 변경 감지
+    # 4단계: HTML 대시보드 생성
+    log("[4/4] 정적 HTML 대시보드 생성...")
+    ok, out = run_script(GENERATORS_DIR / "generate_dashboard.py", ["2026"], dry_run)
+    if not ok:
+        log(f"  ⚠ HTML 생성 실패 (계속 진행)")
+    else:
+        log("  ✅ reports/ HTML 3개 갱신 완료")
+
+    # 6단계: 변경 감지
     log("스냅샷 비교 중...")
     old_snap = load_snapshot()
     new_snap = fetch_tracking_snapshot() if not dry_run else {"total": 0, "hash": "dry", "timestamp": datetime.now().isoformat()}
@@ -253,7 +261,7 @@ def main():
     else:
         log("  변경 없음")
 
-    # 5단계: Telegram 알림
+    # 7단계: Telegram 알림
     should_notify = bool(changes) or force or bool(errors)
     if should_notify and not dry_run:
         log("Telegram 알림 전송...")
