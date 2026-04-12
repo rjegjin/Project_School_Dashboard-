@@ -85,8 +85,11 @@ def run_script(script_path: Path, args: list[str] = None, dry_run: bool = False)
         return False, str(e)
 
 
+SPECIAL_NAMES = ["사회통합전형", "특례", "보훈", "쌍둥이", "학폭", "교직원자녀", "장애", "다자녀(3인+)"]
+
+
 def fetch_tracking_snapshot() -> dict:
-    """입시_트래킹 시트 현황 스냅샷 (학생 수, 유형별 집계)"""
+    """입시_트래킹 + 특별전형_트래킹 시트 현황 스냅샷"""
     try:
         import gspread
         from google.oauth2.service_account import Credentials
@@ -98,6 +101,7 @@ def fetch_tracking_snapshot() -> dict:
         gc = gspread.authorize(creds)
         ss = gc.open_by_key(SPREADSHEET_ID_2026)
 
+        # ── 입시_트래킹 ──────────────────────────────────────────
         ws = ss.worksheet("입시_트래킹")
         rows = ws.get_all_values()
         if not rows:
@@ -106,7 +110,6 @@ def fetch_tracking_snapshot() -> dict:
         header = rows[0]
         data_rows = [r for r in rows[1:] if any(c.strip() for c in r)]
 
-        # 유형 컬럼 찾기
         type_col = next((i for i, h in enumerate(header) if "유형" in h or "type" in h.lower()), None)
         school_col = next((i for i, h in enumerate(header) if "배정" in h or "합격" in h), None)
 
@@ -121,10 +124,27 @@ def fetch_tracking_snapshot() -> dict:
                 if row[school_col].strip():
                     decided += 1
 
+        # ── 특별전형_트래킹 ──────────────────────────────────────
+        special_counts: dict[str, int] = {}
+        try:
+            sws = ss.worksheet("특별전형_트래킹")
+            srows = sws.get_all_values()
+            if srows:
+                sheader = srows[0]
+                for name in SPECIAL_NAMES:
+                    col = next((i for i, h in enumerate(sheader) if h.strip() == name), None)
+                    if col is not None:
+                        cnt = sum(1 for r in srows[1:] if col < len(r) and r[col].strip() == "O")
+                        if cnt:
+                            special_counts[name] = cnt
+        except Exception:
+            pass  # 특별전형_트래킹 없으면 생략
+
         return {
             "total": len(data_rows),
             "decided": decided,
             "types": type_counts,
+            "special": special_counts,
             "hash": hashlib.md5(str(rows).encode()).hexdigest(),
             "timestamp": datetime.now().isoformat(),
         }
@@ -182,12 +202,18 @@ def format_summary(snap: dict, changes: list[str]) -> str:
     total = snap.get("total", "?")
     decided = snap.get("decided", "?")
     types = snap.get("types", {})
+    special = snap.get("special", {})
 
     type_lines = "\n".join(
         f"  · {t}: {c}명"
         for t, c in sorted(types.items(), key=lambda x: -x[1])
         if c > 0
     )
+
+    special_block = ""
+    if special:
+        special_lines = "  " + " | ".join(f"{k}: {v}명" for k, v in special.items())
+        special_block = f"\n🏷 특별전형:\n{special_lines}"
 
     change_block = ""
     if changes:
@@ -198,7 +224,7 @@ def format_summary(snap: dict, changes: list[str]) -> str:
 👥 전체: {total}명 | 확정: {decided}명
 📊 유형별:
 {type_lines or "  (데이터 없음)"}
-{change_block}
+{special_block}{change_block}
 
 ✅ 동기화 완료"""
 

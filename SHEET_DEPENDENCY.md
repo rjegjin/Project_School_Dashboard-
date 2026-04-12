@@ -1,6 +1,6 @@
 # 시트 의존성 맵 (Sheet Dependency Map)
 
-> 작성: 2026-04-12  
+> 작성: 2026-04-12 / 업데이트: 2026-04-13  
 > 목적: 어떤 .py 파일이 어떤 Google Sheets 시트를 읽거나 쓰는지 명확히 기록  
 > 스프레드시트 ID (2026): `14VeC3Dxj0Ou5-ddWTwfzktuWfB0Eoz_2CcDwNZPVEH0`
 
@@ -51,18 +51,47 @@
 
 ---
 
+---
+
+### `특별전형_트래킹`
+| 파일 | 읽기/쓰기 | 역할 |
+|------|-----------|------|
+| `generators/sync_special_to_tracking.py` | **쓰기 (전체 초기화)** | 반별 시트(301~314) 특별전형 컬럼 → 전체 학생 O/공백 기록 |
+| `generators/generate_special_report.py` | 읽기 | 특별전형_트래킹 + 입시_트래킹 → `reports/특별전형_현황.html` |
+| `integrated_dashboard.py` | 읽기 (간접) | 관리 탭에서 동기화/HTML 생성 버튼 실행 |
+| `auto_sync.py` | 실행 (간접) | `sync_special_to_tracking.py` 호출 (3단계) |
+
+**읽는 컬럼 (반별 시트 0-based):**
+| col | 컬럼명 |
+|-----|--------|
+| 4 (E) | 사회통합전형 |
+| 5 (F) | 특례 |
+| 6 (G) | 보훈 |
+| 16 (Q) | 쌍둥이 |
+| 17 (R) | 학폭 |
+| 18 (S) | 교직원자녀 |
+| 19 (T) | 장애 |
+| 20 (U) | 다자녀(3인+) ← `add_dajanyeo_column.py`로 추가 (2026-04-13) |
+
+---
+
 ## 2. 자동화 파이프라인 실행 순서
 
 ```
 [cron 07:30 평일]
 auto_sync.py
-  ├── 1단계: sync_form_to_class_sheets.py   (설문지 → 반별 시트 301~314)
-  ├── 2단계: sync_type_to_tracking.py        (반별 시트 → 입시_트래킹 유형/지원학교)
-  ├── 3단계: build_progress_from_tracking.py (입시_트래킹 → 입시 진행 현황)
-  └── 4단계: generate_dashboard.py           (입시_트래킹 → reports/ HTML 3개 갱신)
+  ├── 1단계: sync_form_to_class_sheets.py    (설문지 → 반별 시트 301~314)
+  ├── 2단계: sync_type_to_tracking.py         (반별 시트 → 입시_트래킹 유형/지원학교)
+  ├── 3단계: sync_special_to_tracking.py      (반별 시트 → 특별전형_트래킹)  ← NEW
+  ├── 4단계: build_progress_from_tracking.py  (입시_트래킹 → 입시 진행 현황)
+  └── 5단계: generate_dashboard.py            (입시_트래킹 → reports/ HTML 일반 3개)
+           + generate_special_report.py       (특별전형_트래킹 → reports/특별전형_현황.html)  ← NEW
+
+[수동, 최초 1회]
+add_dajanyeo_column.py 2026                  (반별 시트 전체에 다자녀(3인+) col 20 삽입 — 멱등)
 
 [수동, 합불 발표 후]
-generate_final_sheets.py                    (입시_트래킹 최종 → 전기고_최종 / 후기고_최종)
+generate_final_sheets.py                     (입시_트래킹 최종 → 전기고_최종 / 후기고_최종)
 ```
 
 ---
@@ -73,6 +102,9 @@ generate_final_sheets.py                    (입시_트래킹 최종 → 전기�
 | `전기고_현황.html` | `generators/generate_dashboard.py` | 영재고/과학고/예술계고/특성화고 카드 |
 | `후기고_현황.html` | `generators/generate_dashboard.py` | 자사고/외고/비평준화고/일반고 카드 |
 | `전체_현황.html`  | `generators/generate_dashboard.py` | 전체 (유형 필터 버튼 포함) |
+| `특별전형_현황.html` | `generators/generate_special_report.py` | 특별전형 8종 요약카드 + 전형×계열 매트릭스 + 학생 필터 |
+
+> `reports/_legacy/` — 구형 `목일중_*` 파일 보관 (Streamlit 뷰어에서 자동 제외)
 
 ---
 
@@ -111,6 +143,15 @@ generate_final_sheets.py                    (입시_트래킹 최종 → 전기�
 ```bash
 # 유형 자동 동기화 (반별 시트 → 입시_트래킹)
 python generators/sync_type_to_tracking.py 2026
+
+# 특별전형 동기화 (반별 시트 → 특별전형_트래킹)
+python generators/sync_special_to_tracking.py 2026
+
+# 특별전형 HTML 생성 (특별전형_트래킹 → reports/특별전형_현황.html)
+python generators/generate_special_report.py 2026
+
+# 다자녀 컬럼 삽입 (최초 1회, 멱등)
+python generators/add_dajanyeo_column.py 2026
 
 # 진행현황 재생성 (유형 입력 후)
 python generators/build_progress_from_tracking.py 2026
