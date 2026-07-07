@@ -10,9 +10,14 @@
 """
 
 import sys
+from pathlib import Path
 from collections import defaultdict
 import gspread
 from google.oauth2.service_account import Credentials
+
+# 슬롯 기반 학교 분류
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from school_types import classify_school
 
 KEY_FILE = "/home/rjegj/projects/.secrets/service_key.json"
 SCOPES = [
@@ -68,21 +73,35 @@ def main():
     col_map = {h: i for i, h in enumerate(header)}
 
     # 필수 컬럼 확인
-    required = ["반", "번호", "성명", "성별", "1차", "2차", "최종"]
+    required = ["반", "번호", "성명", "성별"]
     for req in required:
         if req not in col_map:
             print(f"❌ '{req}' 컬럼을 찾을 수 없습니다.")
             return
 
-    type_col = col_map.get("최종유형", col_map.get("유형"))
-    school_col = col_map.get("최종학교", col_map.get("지원학교"))
-    if type_col is None:
-        print("❌ '최종유형' 또는 '유형' 컬럼을 찾을 수 없습니다.")
-        return
+    # 슬롯 컬럼 정의: (접수_컬럼, 결과_컬럼, 고정_유형)
+    SLOT_FIELDS = [
+        ("영재고_접수", "영재고_결과", "영재고"),
+        ("전기_접수학교", "전기_결과", None),
+        ("후기_접수학교", "후기_결과", None),
+    ]
 
     def get(row, col_name=None, idx=None):
         col_idx = col_map.get(col_name) if col_name is not None else idx
         return row[col_idx].strip() if col_idx is not None and col_idx < len(row) else ""
+
+    # classify_school 결과를 섹션 타입으로 매핑
+    def map_to_section_type(classified_type, is_early_slot):
+        """classify_school 반환값을 EARLY/LATE_SECTIONS의 섹션 타입으로 변환."""
+        if classified_type == "예술계고":
+            return "예고"
+        elif classified_type == "영재고":
+            # ponytail: 영재고 slot 전용; EARLY_SECTIONS에 전용 섹션 없으므로 과학고 섹션으로 통합
+            return "과학고"
+        elif classified_type == "":
+            # 미분류는 후기 비평준화고로
+            return "비평준화고"
+        return classified_type
 
     passed = defaultdict(lambda: defaultdict(list))  # [early/late][type] = [students]
 
@@ -90,27 +109,37 @@ def main():
         if len(r) < 3 or not get(r, "성명"):
             continue
 
-        final = get(r, "최종").lower()
-        if final not in ["합격", "pass", "o", "yes", "v"]:
-            continue
+        for idx, (school_col, result_col, fixed_type) in enumerate(SLOT_FIELDS):
+            school = get(r, school_col)
+            result = get(r, result_col)
 
-        student = {
-            "반": get(r, "반"),
-            "번호": get(r, "번호"),
-            "성명": get(r, "성명"),
-            "성별": get(r, "성별"),
-            "유형": get(r, idx=type_col),
-            "지원학교": get(r, idx=school_col),
-            "학과": get(r, "학과"),
-            "1차": get(r, "1차"),
-            "2차": get(r, "2차"),
-        }
+            # 접수가 있고 결과가 "최종합"인 경우만 합격 판정
+            if not school or result != "최종합":
+                continue
 
-        school_type = student["유형"]
-        if school_type in EARLY_TYPES:
-            passed["early"][school_type].append(student)
-        else:
-            passed["late"][school_type].append(student)
+            # 학교 유형 결정: 고정 유형 또는 classify_school
+            raw_type = fixed_type or classify_school(school.split(",")[0])
+
+            # 섹션 타입으로 매핑
+            school_type = map_to_section_type(raw_type, True)
+
+            student = {
+                "반": get(r, "반"),
+                "번호": get(r, "번호"),
+                "성명": get(r, "성명"),
+                "성별": get(r, "성별"),
+                "유형": school_type,
+                "지원학교": school,
+                "학과": get(r, "학과"),
+                "1차": "",
+                "2차": "",
+            }
+
+            # 슬롯 위치로 early/late 결정: 영재고(0), 전기(1) = early; 후기(2) = late
+            if idx < 2:
+                passed["early"][school_type].append(student)
+            else:
+                passed["late"][school_type].append(student)
 
     early_total = sum(len(v) for v in passed["early"].values())
     late_total = sum(len(v) for v in passed["late"].values())
