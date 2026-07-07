@@ -71,50 +71,60 @@ def main():
 
     students = []  # list of dicts
 
-    for sht in sorted(ss.worksheets(), key=lambda s: s.title):
-        title = sht.title.strip()
-        if not (title.isdigit() and len(title) == 3 and title.startswith("3")):
-            continue
+    # ponytail: 14개 시트 개별 read를 1회 batch로 통합
+    class_titles = [
+        sht.title.strip()
+        for sht in sorted(ss.worksheets(), key=lambda s: s.title)
+        if sht.title.strip().isdigit() and len(sht.title.strip()) == 3 and sht.title.strip().startswith("3")
+    ]
+    if not class_titles:
+        total_students = 0
+        total_special = 0
+        print(f"  → 전체 {total_students}명 중 특별전형 해당 {total_special}명")
+    else:
+        response = ss.values_batch_get(ranges=[f"'{t}'!A1:AB80" for t in class_titles])
 
-        rows = sht.get_all_values()
-        # 반별 시트 헤더: row0=HEADER1, row1=HEADER2, row2+=학생
-        data_start = 2
-        if len(rows) <= data_start:
-            continue
-
-        cls_num = int(title[1:])  # "301" → 1
-
-        found = 0
-        for r in rows[data_start:]:
-            # 최소 이름 있어야
-            if len(r) < 3 or not r[2].strip():
+        for title, value_range in zip(class_titles, response["valueRanges"]):
+            rows = value_range.get("values", [])
+            # 반별 시트 헤더: row0=HEADER1, row1=HEADER2, row2+=학생
+            data_start = 2
+            if len(rows) <= data_start:
+                print(f"  → {title}반: 0명 특별전형 해당")
                 continue
 
-            special = {}
-            has_any = False
-            for col_idx, name in SPECIAL_COLS.items():
-                val = r[col_idx].strip() if col_idx < len(r) else ""
-                checked = is_checked(val)
-                special[name] = "O" if checked else ""
-                if checked:
-                    has_any = True
+            cls_num = int(title[1:])  # "301" → 1
 
-            students.append({
-                "cls":    r[0].strip() or str(cls_num),
-                "num":    r[1].strip(),
-                "name":   r[2].strip(),
-                "gender": r[3].strip() if len(r) > 3 else "",
-                **special,
-                "_any":  has_any,
-            })
-            if has_any:
-                found += 1
+            found = 0
+            for r in rows[data_start:]:
+                # 최소 이름 있어야
+                if len(r) < 3 or not r[2].strip():
+                    continue
 
-        print(f"  → {title}반: {found}명 특별전형 해당")
+                special = {}
+                has_any = False
+                for col_idx, name in SPECIAL_COLS.items():
+                    val = r[col_idx].strip() if col_idx < len(r) else ""
+                    checked = is_checked(val)
+                    special[name] = "O" if checked else ""
+                    if checked:
+                        has_any = True
 
-    total_students = len(students)
-    total_special = sum(1 for s in students if s["_any"])
-    print(f"  → 전체 {total_students}명 중 특별전형 해당 {total_special}명")
+                students.append({
+                    "cls":    r[0].strip() or str(cls_num),
+                    "num":    r[1].strip(),
+                    "name":   r[2].strip(),
+                    "gender": r[3].strip() if len(r) > 3 else "",
+                    **special,
+                    "_any":  has_any,
+                })
+                if has_any:
+                    found += 1
+
+            print(f"  → {title}반: {found}명 특별전형 해당")
+
+        total_students = len(students)
+        total_special = sum(1 for s in students if s["_any"])
+        print(f"  → 전체 {total_students}명 중 특별전형 해당 {total_special}명")
 
     # ── Step 2. 특별전형_트래킹 시트 생성/갱신 ───────────────
     print(f"\n[2/2] {TRACKING_SHEET} 시트 업데이트 중...")

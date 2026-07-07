@@ -185,18 +185,23 @@ def detect_slots(row: list[str]) -> dict[str, dict]:
 
 
 def load_class_sources(ss) -> list[SourceStudent]:
-    students: list[SourceStudent] = []
-    for sht in ss.worksheets():
-        title = sht.title.strip()
-        if not (title.isdigit() and len(title) == 3 and title.startswith("3")):
-            continue
+    class_titles = [
+        sht.title.strip()
+        for sht in ss.worksheets()
+        if sht.title.strip().isdigit() and len(sht.title.strip()) == 3 and sht.title.strip().startswith("3")
+    ]
+    if not class_titles:
+        return []
 
-        rows = sht.get_all_values()
+    # ponytail: 14개 시트 개별 read가 분당 쿼터를 치던 원인 — 1회 batch로 통합
+    response = ss.values_batch_get(ranges=[f"'{t}'!A1:AB80" for t in class_titles])
+    students: list[SourceStudent] = []
+    for title, value_range in zip(class_titles, response["valueRanges"]):
+        rows = value_range.get("values", [])
         data_start = 2 if len(rows) > 2 and len(rows[1]) > 2 and not norm(rows[1][2]) else 1
         for row_idx, row in enumerate(rows[data_start:], start=data_start + 1):
             if len(row) < 3 or not norm(row[2]):
                 continue
-
             hope_type = detect_type(row)
             hope_school = detect_school(row, hope_type)
             slots = detect_slots(row)
@@ -325,7 +330,7 @@ def data_status(hope_type: str, slots: dict[str, dict], final_assigned: str) -> 
     if any(s["flags"] for s in slots.values()):
         return "확인필요"
     for slot in reversed(SLOT_ORDER):  # 가장 늦은 시기 슬롯이 현재 진행 단계
-        if slots[slot]["school"]:
+        if slots.get(slot, {}).get("school"):
             return f"{slot}진행"
     if hope_type:
         return "희망만"
