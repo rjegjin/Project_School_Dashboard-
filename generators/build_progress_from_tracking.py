@@ -58,74 +58,43 @@ def main():
 
     # 컬럼 인덱스 확인
     col_map = {h: i for i, h in enumerate(header)}
-    required_cols = ["반", "번호", "성명", "성별", "1차", "2차", "최종"]
+    required_cols = ["반", "번호", "성명", "성별"]
 
     for col in required_cols:
         if col not in col_map:
             print(f"❌ '{col}' 컬럼을 찾을 수 없습니다.")
             return
 
-    type_col = col_map.get("최종유형", col_map.get("유형"))
-    school_col = col_map.get("최종학교", col_map.get("지원학교"))
-    if type_col is None:
-        print("❌ '최종유형' 또는 '유형' 컬럼을 찾을 수 없습니다.")
-        return
+    def get(row, name):
+        idx = col_map.get(name)
+        return str(row[idx]).strip() if idx is not None and idx < len(row) else ""
 
-    def get(row, col_name=None, idx=None):
-        col_idx = col_map.get(col_name) if col_name is not None else idx
-        return row[col_idx].strip() if col_idx is not None and col_idx < len(row) else ""
+    def slot_cell(row, school_col, result_col):
+        school, result = get(row, school_col), get(row, result_col)
+        return f"{school} {result}".strip()
 
     # 입시_트래킹 데이터 읽기
     progress_data = [
-        ["반", "번호", "성명", "성별", "지원유형", "1차", "2차", "최종", "비고"]
+        ["반", "번호", "성명", "성별", "희망유형", "영재고", "전기", "후기", "최종배정", "비고"]
     ]
 
-    valid_count = 0
+    progress_rows = []
     for row in tracking_rows[1:]:
-        if len(row) < 3 or not get(row, "성명"):
+        hope = get(row, "희망유형")
+        gifted = slot_cell(row, "영재고_접수", "영재고_결과")
+        early = slot_cell(row, "전기_접수학교", "전기_결과")
+        late = slot_cell(row, "후기_접수학교", "후기_결과")
+        assigned = get(row, "최종배정학교")
+        if not (hope or gifted or early or late or assigned):
             continue
+        progress_rows.append([
+            get(row, "반"), get(row, "번호"), get(row, "성명"), get(row, "성별"),
+            hope, gifted, early, late, assigned, get(row, "데이터상태"),
+        ])
 
-        cls = get(row, "반")
-        num = get(row, "번호")
-        name = get(row, "성명")
-        gender = get(row, "성별")
-        school_type = get(row, idx=type_col)
-        first = get(row, "1차")
-        second = get(row, "2차")
-        final = get(row, "최종")
-        grade = get(row, "학년")
-        early_grad = get(row, "조기졸업여부").upper() == "O"
-
-        # 최종 유형이 없으면 스킵
-        if not school_type:
-            continue
-
-        # 지원학교, 학과 정보 수집 (비고에 추가)
-        school = get(row, idx=school_col)
-        major = get(row, "학과")
-
-        remark = ""
-        if early_grad:
-            remark = f"조기졸업({grade}학년)" if grade else "조기졸업"
-        if school:
-            remark += f" / 지원: {school}" if remark else f"지원: {school}"
-        if major:
-            remark += f" / {major}" if remark else f"학과: {major}"
-
-        row_data = [
-            cls,
-            num,
-            name,
-            gender,
-            school_type,
-            first,
-            second,
-            final,
-            remark
-        ]
-
+    valid_count = len(progress_rows)
+    for row_data in progress_rows:
         progress_data.append(row_data)
-        valid_count += 1
 
     print(f"  → {valid_count}명의 데이터 수집 완료")
 
@@ -147,32 +116,14 @@ def main():
     # ── Step 3. 통계 출력 ──────────────────────────────
     print(f"\n[3/2] 통계 계산 중...")
 
-    type_stats = {}
-    final_stats = {}
+    from collections import Counter
+    hope_stats = Counter(row[4] for row in progress_data[1:] if row[4])
 
-    for row in progress_data[1:]:
-        school_type = row[4]
-        final_result = row[7]
-
-        if school_type not in type_stats:
-            type_stats[school_type] = 0
-        type_stats[school_type] += 1
-
-        if final_result not in final_stats:
-            final_stats[final_result] = 0
-        final_stats[final_result] += 1
-
-    print(f"\n  지원 유형별 분포:")
-    for school_type in sorted(type_stats.keys()):
-        count = type_stats[school_type]
-        pct = count / valid_count * 100
-        print(f"    {school_type}: {count}명 ({pct:.1f}%)")
-
-    print(f"\n  최종 결과별 분포:")
-    for result in sorted(final_stats.keys()):
-        count = final_stats[result]
+    print(f"\n  희망 유형별 분포:")
+    for school_type in sorted(hope_stats.keys()):
+        count = hope_stats[school_type]
         pct = count / valid_count * 100 if valid_count > 0 else 0
-        print(f"    {result}: {count}명 ({pct:.1f}%)")
+        print(f"    {school_type}: {count}명 ({pct:.1f}%)")
 
     print(f"\n{'='*70}")
     print(f" 완료! ✅")
