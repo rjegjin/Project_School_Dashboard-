@@ -16,11 +16,14 @@
 from __future__ import annotations
 
 import argparse
+import json
 from collections import Counter, defaultdict
 from dataclasses import dataclass
 
 import gspread
 from google.oauth2.service_account import Credentials
+
+from school_types import classify_school
 
 KEY_FILE = "/home/rjegj/projects/.secrets/service_key.json"
 SCOPES = [
@@ -44,32 +47,38 @@ TYPE_MAP = {
     15: "기타/대안",
 }
 
-RECEIPT_TYPE_MAP = {
-    21: "영재고",
-    22: "과학고",
-    23: "자사고",
-}
-
 PRIORITY = ["영재고", "과학고", "예술계고", "특성화고", "자사고", "외고/국제고", "기타/대안", "일반고"]
 EMPTY_MARKERS = {"", "X", "x", "0"}
 CHECK_MARKERS = {"O", "o", "○"}
-RECEIPT_POSITIVE_MARKERS = {"O", "o", "○", "V", "v", "✓", "1", "y", "Y", "예", "있음"}
-RECEIPT_NEGATIVE_MARKERS = {"X", "x", "0", "아니오", "없음", "철회"}
+
+# 반별 시트 시기 슬롯: (접수학교 col, 결과 col) 0-based
+SLOT_COLS = {
+    "영재고": (21, 22),  # V, W
+    "전기": (23, 24),    # X, Y
+    "후기": (25, 26),    # Z, AA
+}
+SLOT_ORDER = ["영재고", "전기", "후기"]
+RESULT_CODES = {"1차합", "1차불", "2차합", "2차불", "최종합", "최종불", "포기"}
 
 SCHEMA_COLUMNS = [
     "학년",
     "학생ID",
     "희망유형",
     "희망학교",
-    "접수유형",
-    "접수학교",
-    "접수상태",
-    "최종유형",
-    "최종학교",
+    "영재고_접수",
+    "영재고_결과",
+    "전기_접수학교",
+    "전기_유형",
+    "전기_결과",
+    "후기_접수학교",
+    "후기_유형",
+    "후기_결과",
+    "최종배정학교",
     "데이터상태",
     "조기졸업여부",
     "출처",
 ]
+ADMIN_ONLY_COLUMNS = {"최종배정학교"}  # sync가 헤더만 만들고 값은 절대 쓰지 않음
 
 
 @dataclass(frozen=True)
@@ -83,10 +92,11 @@ class SourceStudent:
     hope_school: str
     source: str
     early_grad: bool = False
-    receipt_type: str = ""
-    receipt_school: str = ""
-    receipt_status: str = ""
-    receipt_note: str = ""
+    slots_json: str = "{}"
+
+    @property
+    def slots(self) -> dict:
+        return json.loads(self.slots_json)
 
     def student_id(self, year: str) -> str:
         return f"{year}-{self.grade}-{self.cls}-{self.num}"
@@ -155,45 +165,23 @@ def detect_school(row: list[str], school_type: str) -> str:
     return ""
 
 
-def detect_receipt(row: list[str], hope_type: str, hope_school: str) -> tuple[str, str, str, str]:
-    """반별 시트 V:X 실제 접수 블록에서 접수유형/학교/상태를 판정한다."""
-    receipts: list[tuple[str, str, str]] = []
-    negatives: list[str] = []
-
-    for col_idx, type_name in RECEIPT_TYPE_MAP.items():
-        val = norm(row[col_idx]) if col_idx < len(row) else ""
-        if not val:
-            continue
-
-        if val in RECEIPT_NEGATIVE_MARKERS:
-            negatives.append(type_name)
-            continue
-
-        if val in RECEIPT_POSITIVE_MARKERS:
-            school = detect_school(row, type_name)
-            if not school and hope_type == type_name:
-                school = hope_school
-            receipts.append((type_name, school, val))
-            continue
-
-        receipts.append((type_name, val, val))
-
-    if len(receipts) > 1:
-        chosen_type, chosen_school, _raw = sorted(
-            receipts,
-            key=lambda item: list(RECEIPT_TYPE_MAP.values()).index(item[0]),
-        )[0]
-        note = ", ".join(f"{rtype}:{school or raw}" for rtype, school, raw in receipts)
-        return chosen_type, chosen_school, "복수접수 확인필요", note
-
-    if len(receipts) == 1:
-        chosen_type, chosen_school, _raw = receipts[0]
-        return chosen_type, chosen_school, "접수확정", ""
-
-    if negatives:
-        return "", "", "접수안함/철회", ", ".join(negatives)
-
-    return "", "", "", ""
+def detect_slots(row: list[str]) -> dict[str, dict]:
+    """반별 시트 V:AA 시기 슬롯 블록을 판정한다."""
+    row = row + [""] * (28 - len(row))
+    slots: dict[str, dict] = {}
+    for slot, (school_col, result_col) in SLOT_COLS.items():
+        school = norm(row[school_col])
+        result = norm(row[result_col])
+        flags: list[str] = []
+        if result and result not in RESULT_CODES:
+            flags.append("결과코드비표준")
+        if school:
+            # 복수지원(쉼표)은 첫 학교 기준으로 유형 분류
+            first = school.split(",")[0].strip()
+            if slot != "영재고" and not classify_school(first):
+                flags.append("유형미분류")
+        slots[slot] = {"school": school, "result": result, "flags": flags}
+    return slots
 
 
 def load_class_sources(ss) -> list[SourceStudent]:
@@ -211,7 +199,7 @@ def load_class_sources(ss) -> list[SourceStudent]:
 
             hope_type = detect_type(row)
             hope_school = detect_school(row, hope_type)
-            receipt_type, receipt_school, receipt_status, receipt_note = detect_receipt(row, hope_type, hope_school)
+            slots = detect_slots(row)
             students.append(
                 SourceStudent(
                     grade="3",
@@ -222,10 +210,7 @@ def load_class_sources(ss) -> list[SourceStudent]:
                     hope_type=hope_type,
                     hope_school=hope_school,
                     source=f"{title}!{row_idx}",
-                    receipt_type=receipt_type,
-                    receipt_school=receipt_school,
-                    receipt_status=receipt_status,
-                    receipt_note=receipt_note,
+                    slots_json=json.dumps(slots, ensure_ascii=False, sort_keys=True),
                 )
             )
     return students
@@ -334,15 +319,14 @@ def choose_source(
     return None, f"반번호 충돌 또는 이름 불일치: {names}"
 
 
-def data_status(hope_type: str, receipt_type: str, receipt_status: str, final_type: str, legacy_type: str) -> str:
-    if receipt_status == "복수접수 확인필요":
-        return "복수접수 확인필요"
-    if receipt_type:
-        return "접수확정" if not hope_type or receipt_type == hope_type else "희망/접수 불일치"
-    if legacy_type and hope_type and legacy_type != hope_type:
-        return "기존값/희망 불일치"
-    if final_type:
-        return "최종확정"
+def data_status(hope_type: str, slots: dict[str, dict], final_assigned: str) -> str:
+    if final_assigned:
+        return "배정완료"
+    if any(s["flags"] for s in slots.values()):
+        return "확인필요"
+    for slot in reversed(SLOT_ORDER):  # 가장 늦은 시기 슬롯이 현재 진행 단계
+        if slots[slot]["school"]:
+            return f"{slot}진행"
     if hope_type:
         return "희망만"
     return "미입력"
@@ -421,11 +405,6 @@ def main() -> int:
     c_name = columns.get("성명", columns.get("이름", 2))
     c_type = columns.get("유형")
     c_school = columns.get("지원학교")
-    c_receipt_type = columns.get("접수유형")
-    c_receipt_school = columns.get("접수학교")
-    c_receipt_status = columns.get("접수상태")
-    c_final_type = columns.get("최종유형")
-    c_final_school = columns.get("최종학교")
 
     for row_num, row in enumerate(rows[1:], start=2):
         if not get_cell(row, c_cls) or not get_cell(row, c_num) or not get_cell(row, c_name):
@@ -441,11 +420,6 @@ def main() -> int:
         matched_sources.add((source.grade, source.cls, source.num, source.name))
         legacy_type = get_cell(row, c_type)
         legacy_school = get_cell(row, c_school)
-        receipt_type_existing = get_cell(row, c_receipt_type)
-        receipt_school_existing = get_cell(row, c_receipt_school)
-        receipt_status_existing = get_cell(row, c_receipt_status)
-        final_type_existing = get_cell(row, c_final_type)
-        final_school_existing = get_cell(row, c_final_school)
 
         if c_type is not None and source.hope_type and legacy_type and legacy_type != source.hope_type:
             conflicts.append(
@@ -454,14 +428,6 @@ def main() -> int:
         if c_school is not None and source.hope_school and legacy_school and legacy_school != source.hope_school:
             conflicts.append(
                 f"row {row_num}: 기존 지원학교={legacy_school!r}, 희망학교={source.hope_school!r}, source={source.source}"
-            )
-        if source.receipt_status == "복수접수 확인필요":
-            conflicts.append(
-                f"row {row_num}: 복수 실제접수={source.receipt_note!r}, 대표접수유형={source.receipt_type!r}, source={source.source}"
-            )
-        if source.receipt_type and source.hope_type and source.receipt_type != source.hope_type:
-            conflicts.append(
-                f"row {row_num}: 희망유형={source.hope_type!r}, 접수유형={source.receipt_type!r}, source={source.source}"
             )
 
         if not args.no_legacy_fill:
@@ -472,37 +438,49 @@ def main() -> int:
                 set_if_changed(legacy_updates, row_num, c_school, legacy_school, source.hope_school, f"legacy blank fill from {source.source}")
 
         if args.apply_schema:
+            slots = source.slots
+            final_assigned = get_cell(row, columns.get("최종배정학교"))
+            gifted = slots.get("영재고", {})
+            early = slots.get("전기", {})
+            late = slots.get("후기", {})
+
+            # 슬롯 플래그를 conflicts로 노출
+            for slot_name, slot in slots.items():
+                for flag in slot["flags"]:
+                    conflicts.append(
+                        f"row {row_num}: [{slot_name}] {flag}: 학교={slot['school']!r}, 결과={slot['result']!r}, source={source.source}"
+                    )
+
             schema_values = {
                 "학년": source.grade,
                 "학생ID": source.student_id(args.year),
                 "희망유형": source.hope_type,
                 "희망학교": source.hope_school,
-                "접수유형": source.receipt_type,
-                "접수학교": source.receipt_school,
-                "접수상태": source.receipt_status,
-                "최종유형": final_type_existing,
-                "최종학교": final_school_existing,
-                "데이터상태": data_status(
-                    source.hope_type,
-                    source.receipt_type or receipt_type_existing,
-                    source.receipt_status or receipt_status_existing,
-                    final_type_existing,
-                    legacy_type,
-                ),
+                "영재고_접수": gifted.get("school", ""),
+                "영재고_결과": gifted.get("result", ""),
+                "전기_접수학교": early.get("school", ""),
+                "전기_유형": classify_school(early.get("school", "").split(",")[0]),
+                "전기_결과": early.get("result", ""),
+                "후기_접수학교": late.get("school", ""),
+                "후기_유형": classify_school(late.get("school", "").split(",")[0]),
+                "후기_결과": late.get("result", ""),
+                "데이터상태": data_status(source.hope_type, slots, final_assigned),
                 "조기졸업여부": "O" if source.early_grad else "",
                 "출처": source.source,
             }
             for name, new_value in schema_values.items():
+                if name in ADMIN_ONLY_COLUMNS:
+                    continue
                 col_idx = columns.get(name)
                 if col_idx is None:
                     continue
                 old_value = get_cell(row, col_idx)
-                set_if_changed(schema_updates, row_num, col_idx, old_value, new_value, f"schema sync from {source.source}")
+                set_if_changed(schema_updates, row_num, col_idx, old_value, new_value, f"{name} <- {source.source}")
 
     print(f"\n[2/3] 입시_트래킹 매칭: {matched}행")
     print_updates("헤더 추가 후보", header_updates)
     print_updates("기존 유형/지원학교 빈칸 채우기 후보", legacy_updates)
-    print_updates("희망/접수/최종 schema 갱신 후보", schema_updates)
+    print_updates("schema 갱신 후보 (전체)", schema_updates)
 
     print(f"\n[충돌/확인 필요] {len(conflicts)}건")
     for item in conflicts[:120]:
