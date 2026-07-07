@@ -14,8 +14,6 @@ from pathlib import Path
 import gspread
 from google.oauth2.service_account import Credentials
 
-from school_types import classify_school
-
 KEY_FILE = "/home/rjegj/projects/.secrets/service_key.json"
 SCOPES = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
 SS_ID = "14VeC3Dxj0Ou5-ddWTwfzktuWfB0Eoz_2CcDwNZPVEH0"
@@ -136,7 +134,7 @@ def main() -> int:
         ws.update(values=[NEW_CLASS_HEADERS], range_name="V1:AB1")
         row_plans = [(r, new) for t, r, _o, new, _n in plans if t == title]
         if row_plans:
-            ws.batch_update([{"range": f"V{r}:AB{r}", "values": [new + [""]]} for r, new in row_plans])
+            ws.batch_update([{"range": f"V{r}:AB{r}", "values": [new]} for r, new in row_plans])
         print(f"  ✅ {title} 적용")
 
     tracking = ss.worksheet("입시_트래킹")
