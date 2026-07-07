@@ -58,12 +58,22 @@ def main():
 
     # 컬럼 인덱스 확인
     col_map = {h: i for i, h in enumerate(header)}
-    required_cols = ["반", "번호", "성명", "성별", "유형", "1차", "2차", "최종"]
+    required_cols = ["반", "번호", "성명", "성별", "1차", "2차", "최종"]
 
     for col in required_cols:
         if col not in col_map:
             print(f"❌ '{col}' 컬럼을 찾을 수 없습니다.")
             return
+
+    type_col = col_map.get("최종유형", col_map.get("유형"))
+    school_col = col_map.get("최종학교", col_map.get("지원학교"))
+    if type_col is None:
+        print("❌ '최종유형' 또는 '유형' 컬럼을 찾을 수 없습니다.")
+        return
+
+    def get(row, col_name=None, idx=None):
+        col_idx = col_map.get(col_name) if col_name is not None else idx
+        return row[col_idx].strip() if col_idx is not None and col_idx < len(row) else ""
 
     # 입시_트래킹 데이터 읽기
     progress_data = [
@@ -72,29 +82,33 @@ def main():
 
     valid_count = 0
     for row in tracking_rows[1:]:
-        if len(row) < 3 or not row[col_map["성명"]]:
+        if len(row) < 3 or not get(row, "성명"):
             continue
 
-        cls = row[col_map["반"]].strip()
-        num = row[col_map["번호"]].strip()
-        name = row[col_map["성명"]].strip()
-        gender = row[col_map["성별"]].strip() if col_map["성별"] < len(row) else ""
-        school_type = row[col_map["유형"]].strip() if col_map["유형"] < len(row) else ""
-        first = row[col_map["1차"]].strip() if col_map["1차"] < len(row) else ""
-        second = row[col_map["2차"]].strip() if col_map["2차"] < len(row) else ""
-        final = row[col_map["최종"]].strip() if col_map["최종"] < len(row) else ""
+        cls = get(row, "반")
+        num = get(row, "번호")
+        name = get(row, "성명")
+        gender = get(row, "성별")
+        school_type = get(row, idx=type_col)
+        first = get(row, "1차")
+        second = get(row, "2차")
+        final = get(row, "최종")
+        grade = get(row, "학년")
+        early_grad = get(row, "조기졸업여부").upper() == "O"
 
         # 최종 유형이 없으면 스킵
         if not school_type:
             continue
 
         # 지원학교, 학과 정보 수집 (비고에 추가)
-        school = row[col_map.get("지원학교", -1)].strip() if col_map.get("지원학교", -1) < len(row) else ""
-        major = row[col_map.get("학과", -1)].strip() if col_map.get("학과", -1) < len(row) else ""
+        school = get(row, idx=school_col)
+        major = get(row, "학과")
 
         remark = ""
+        if early_grad:
+            remark = f"조기졸업({grade}학년)" if grade else "조기졸업"
         if school:
-            remark = f"지원: {school}"
+            remark += f" / 지원: {school}" if remark else f"지원: {school}"
         if major:
             remark += f" / {major}" if remark else f"학과: {major}"
 

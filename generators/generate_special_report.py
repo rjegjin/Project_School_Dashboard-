@@ -134,8 +134,8 @@ def fetch_data(year: str):
         th = tracking_rows[0]
         tc_cls    = th.index("반")    if "반"    in th else 0
         tc_num    = th.index("번호")  if "번호"  in th else 1
-        tc_type   = th.index("유형")  if "유형"  in th else None
-        tc_school = th.index("지원학교") if "지원학교" in th else None
+        tc_type   = th.index("최종유형") if "최종유형" in th else (th.index("유형") if "유형" in th else None)
+        tc_school = th.index("최종학교") if "최종학교" in th else (th.index("지원학교") if "지원학교" in th else None)
         tc_final  = th.index("최종")  if "최종"  in th else None
 
         for r in tracking_rows[1:]:

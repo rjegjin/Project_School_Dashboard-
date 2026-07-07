@@ -64,22 +64,29 @@ def fetch_from_tracking(year: str):
 
     header = rows[0]
 
-    def col(name):
-        try:
-            return header.index(name)
-        except ValueError:
-            return None
+    def col(*names):
+        for name in names:
+            try:
+                return header.index(name)
+            except ValueError:
+                continue
+        return None
 
     c_cls    = col("반")      or 0
     c_num    = col("번호")    or 1
-    c_name   = col("이름")    or 2
+    c_name   = col("이름", "성명") or 2
     c_gender = col("성별")    or 3
-    c_type   = col("유형")
-    c_school = col("지원학교")
+    # 컬러리포트는 진행/희망 현황 보고서이므로 희망값을 우선한다.
+    # 접수유형/최종유형은 실제 접수·확정값을 채운 뒤 별도 기준 보고서에서 사용한다.
+    c_type   = col("희망유형", "최종유형", "유형")
+    c_school = col("희망학교", "최종학교", "지원학교")
     c_final  = col("최종")
+    c_grade  = col("학년")
+    c_early  = col("조기졸업여부")
+    c_data_status = col("데이터상태")
 
     if c_type is None:
-        print("❌ '유형' 컬럼을 찾을 수 없습니다.")
+        print("❌ '희망유형', '최종유형', '유형' 컬럼을 찾을 수 없습니다.")
         return []
 
     def get(r, idx):
@@ -116,6 +123,9 @@ def fetch_from_tracking(year: str):
             "type":   type_val,
             "school": get(r, c_school) or type_val,
             "status": parse_status(get(r, c_final)),
+            "grade": get(r, c_grade),
+            "early_grad": get(r, c_early).upper() == "O",
+            "data_status": get(r, c_data_status),
         })
 
     print(f"  → {len(students)}명 로드 완료")
@@ -125,8 +135,10 @@ def fetch_from_tracking(year: str):
 # ==========================================
 # HTML 생성
 # ==========================================
-def make_badge(status: str) -> str:
+def make_badge(status: str, data_status: str = "") -> str:
     base = "inline-flex items-center px-2 py-0.5 rounded text-xs font-bold border"
+    if "불일치" in data_status:
+        return f'<span class="{base} bg-amber-100 text-amber-700 border-amber-200">⚠ 확인필요</span>'
     mapping = {
         "최종합격": f"{base} bg-green-100 text-green-700 border-green-200",
         "2차합격":  f"{base} bg-purple-100 text-purple-700 border-purple-200",
@@ -146,14 +158,20 @@ def make_section(title: str, students: list) -> str:
         rows_html = ""
         for i, s in enumerate(students):
             gender_cls = "text-blue-500" if s["gender"] == "남" else "text-red-400"
+            class_label = f"{s['class']}반"
+            early_badge = ""
+            if s.get("early_grad"):
+                grade = s.get("grade") or "2"
+                class_label = f"{grade}학년 {s['class']}반"
+                early_badge = '<span class="ml-1 inline-flex items-center px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 text-[10px] font-extrabold">조기졸업</span>'
             rows_html += f"""
             <tr class="hover:bg-slate-50 transition-colors">
                 <td class="text-center text-gray-400 font-mono py-2 border-r border-gray-100">{i+1}</td>
-                <td class="text-center py-2 border-r border-gray-100 text-gray-600">{s['class']}반</td>
+                <td class="text-center py-2 border-r border-gray-100 text-gray-600">{class_label}</td>
                 <td class="text-center py-2 border-r border-gray-100 font-semibold text-gray-800">{s['name']}</td>
                 <td class="text-center py-2 border-r border-gray-100 text-xs {gender_cls}">{s['gender']}</td>
-                <td class="py-2 border-r border-gray-100 pl-2 font-medium text-gray-700">{s['school']}</td>
-                <td class="text-center py-2">{make_badge(s['status'])}</td>
+                <td class="py-2 border-r border-gray-100 pl-2 font-medium text-gray-700">{s['school']}{early_badge}</td>
+                <td class="text-center py-2">{make_badge(s['status'], s.get('data_status', ''))}</td>
             </tr>"""
 
     return f"""

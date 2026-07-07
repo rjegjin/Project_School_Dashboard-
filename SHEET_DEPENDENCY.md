@@ -4,6 +4,9 @@
 > 목적: 어떤 .py 파일이 어떤 Google Sheets 시트를 읽거나 쓰는지 명확히 기록  
 > 스프레드시트 ID (2026): `14VeC3Dxj0Ou5-ddWTwfzktuWfB0Eoz_2CcDwNZPVEH0`
 
+> 희망/실제접수/결과 단계 분리 재설계는
+> [`ADMISSION_STAGE_REDESIGN.md`](ADMISSION_STAGE_REDESIGN.md)를 기준 문서로 삼는다.
+
 ---
 
 ## 1. 시트별 의존 파일 목록

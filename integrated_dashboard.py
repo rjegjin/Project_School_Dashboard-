@@ -12,6 +12,12 @@ import paramiko
 # ==========================================
 # 설정
 # ==========================================
+WORKSPACE_ROOT = os.getenv("WORKSPACE_DIR", os.path.expanduser("~/projects"))
+PROJECT_ROOT = os.path.join(WORKSPACE_ROOT, "Project_HighSchool_apply_Dashboard")
+ANALYTICS_ROOT = os.path.join(WORKSPACE_ROOT, "Project_HighSchool_apply_Analytics")
+VENV_PYTHON = os.path.join(WORKSPACE_ROOT, "unified_venv/bin/python")
+KEY_FILE_PATH = os.path.join(WORKSPACE_ROOT, ".secrets/service_key.json")
+
 st.set_page_config(
     page_title="📊 고입 진학현황 통합 대시보드",
     page_icon="📊",
@@ -22,12 +28,11 @@ st.set_page_config(
 # Google Sheets 인증
 @st.cache_resource
 def get_sheets_client():
-    KEY_FILE = "/home/rjegj/projects/.secrets/service_key.json"
     SCOPES = [
         'https://www.googleapis.com/auth/spreadsheets',
         'https://www.googleapis.com/auth/drive'
     ]
-    creds = Credentials.from_service_account_file(KEY_FILE, scopes=SCOPES)
+    creds = Credentials.from_service_account_file(KEY_FILE_PATH, scopes=SCOPES)
     return gspread.authorize(creds)
 
 # ==========================================
@@ -44,6 +49,12 @@ def load_2026_data():
         tracking_data = tracking_sht.get_all_values()
 
         df = pd.DataFrame(tracking_data[1:], columns=tracking_data[0])
+        if '최종유형' in df.columns:
+            base_type = df['유형'] if '유형' in df.columns else ''
+            df['유형'] = df['최종유형'].where(df['최종유형'].astype(str).str.strip() != '', base_type)
+        if '최종학교' in df.columns:
+            base_school = df['지원학교'] if '지원학교' in df.columns else ''
+            df['지원학교'] = df['최종학교'].where(df['최종학교'].astype(str).str.strip() != '', base_school)
         return df
     except Exception as e:
         st.error(f"2026 데이터 로드 실패: {e}")
@@ -239,7 +250,7 @@ with st.sidebar:
                 try:
                     import subprocess
                     result = subprocess.run([
-                        "/home/rjegj/projects/unified_venv/bin/python",
+                        VENV_PYTHON,
                         "Project_HighSchool_apply_Dashboard/generators/create_main_dashboard.py"
                     ], capture_output=True, text=True, timeout=30)
                     if result.returncode == 0:
@@ -255,9 +266,11 @@ with st.sidebar:
                 try:
                     import subprocess
                     result = subprocess.run([
-                        "/home/rjegj/projects/unified_venv/bin/python",
+                        VENV_PYTHON,
                         "Project_HighSchool_apply_Dashboard/generators/sync_type_to_tracking.py",
-                        "2026"
+                        "2026",
+                        "--apply-schema",
+                        "--no-legacy-fill"
                     ], capture_output=True, text=True, timeout=30)
                     if result.returncode == 0:
                         st.success("✅ 유형 동기화 완료!")
@@ -274,7 +287,7 @@ with st.sidebar:
                 try:
                     import subprocess
                     result = subprocess.run([
-                        "/home/rjegj/projects/unified_venv/bin/python",
+                        VENV_PYTHON,
                         "Project_HighSchool_apply_Dashboard/generators/generate_final_sheets.py",
                         "2026"
                     ], capture_output=True, text=True, timeout=30)
@@ -291,7 +304,7 @@ with st.sidebar:
                 try:
                     import subprocess
                     result = subprocess.run([
-                        "/home/rjegj/projects/unified_venv/bin/python",
+                        VENV_PYTHON,
                         "Project_HighSchool_apply_Dashboard/generators/build_progress_from_tracking.py",
                         "2026"
                     ], capture_output=True, text=True, timeout=30)
@@ -435,7 +448,7 @@ else:
 # ──────────────────────────────────────────
 with tab0:
     # 마크다운 파일 읽기
-    workflow_file = "/home/rjegj/projects/Project_HighSchool_apply_Dashboard/ANNUAL_WORKFLOW.md"
+    workflow_file = os.path.join(PROJECT_ROOT, "ANNUAL_WORKFLOW.md")
     try:
         with open(workflow_file, 'r', encoding='utf-8') as f:
             workflow_content = f.read()
@@ -1059,8 +1072,8 @@ with tab11:
             try:
                 import subprocess
                 cmd = [
-                    "/home/rjegj/projects/unified_venv/bin/python",
-                    "/home/rjegj/projects/Project_HighSchool_apply_Dashboard/generators/sync_form_to_class_sheets.py",
+                    VENV_PYTHON,
+                    os.path.join(PROJECT_ROOT, "generators/sync_form_to_class_sheets.py"),
                 ]
                 if form_dry_run:
                     cmd.append("--dry-run")
@@ -1089,9 +1102,11 @@ with tab11:
                 try:
                     import subprocess
                     result = subprocess.run([
-                        "/home/rjegj/projects/unified_venv/bin/python",
+                        VENV_PYTHON,
                         "Project_HighSchool_apply_Dashboard/generators/sync_type_to_tracking.py",
-                        "2026"
+                        "2026",
+                        "--apply-schema",
+                        "--no-legacy-fill"
                     ], capture_output=True, text=True, timeout=60)
                     if result.returncode == 0:
                         st.success("✅ 유형 동기화 완료!")
@@ -1110,7 +1125,7 @@ with tab11:
                 try:
                     import subprocess
                     result = subprocess.run([
-                        "/home/rjegj/projects/unified_venv/bin/python",
+                        VENV_PYTHON,
                         "Project_HighSchool_apply_Dashboard/generators/generate_final_sheets.py",
                         "2026"
                     ], capture_output=True, text=True, timeout=60)
@@ -1137,7 +1152,7 @@ with tab11:
                 try:
                     import subprocess
                     result = subprocess.run([
-                        "/home/rjegj/projects/unified_venv/bin/python",
+                        VENV_PYTHON,
                         "Project_HighSchool_apply_Dashboard/generators/create_main_dashboard.py"
                     ], capture_output=True, text=True, timeout=60)
                     if result.returncode == 0:
@@ -1157,7 +1172,7 @@ with tab11:
                 try:
                     import subprocess
                     result = subprocess.run([
-                        "/home/rjegj/projects/unified_venv/bin/python",
+                        VENV_PYTHON,
                         "Project_HighSchool_apply_Dashboard/generators/build_progress_from_tracking.py",
                         "2026"
                     ], capture_output=True, text=True, timeout=60)
@@ -1183,7 +1198,7 @@ with tab11:
                 try:
                     import subprocess
                     result = subprocess.run([
-                        "/home/rjegj/projects/unified_venv/bin/python",
+                        VENV_PYTHON,
                         "Project_HighSchool_apply_Dashboard/generators/mokil_high_school_results_gen.py"
                     ], capture_output=True, text=True, timeout=60)
                     if result.returncode == 0:
@@ -1203,7 +1218,7 @@ with tab11:
                 try:
                     import subprocess
                     result = subprocess.run([
-                        "/home/rjegj/projects/unified_venv/bin/python",
+                        VENV_PYTHON,
                         "Project_HighSchool_apply_Dashboard/generators/generate_table.py",
                         "2026"
                     ], capture_output=True, text=True, timeout=60)
@@ -1230,9 +1245,9 @@ with tab11:
                 try:
                     import subprocess
                     result = subprocess.run([
-                        "/home/rjegj/projects/unified_venv/bin/python",
-                        "/home/rjegj/projects/Project_HighSchool_apply_Analytics/src/research_analytics.py"
-                    ], capture_output=True, text=True, timeout=120, cwd="/home/rjegj/projects/Project_HighSchool_apply_Analytics")
+                        VENV_PYTHON,
+                        os.path.join(ANALYTICS_ROOT, "src/research_analytics.py")
+                    ], capture_output=True, text=True, timeout=120, cwd=ANALYTICS_ROOT)
                     if result.returncode == 0:
                         st.success("✅ Step 1 완료!")
                         st.info(result.stdout)
@@ -1248,9 +1263,9 @@ with tab11:
                 try:
                     import subprocess
                     result = subprocess.run([
-                        "/home/rjegj/projects/unified_venv/bin/python",
-                        "/home/rjegj/projects/Project_HighSchool_apply_Analytics/src/statistical_deep_research.py"
-                    ], capture_output=True, text=True, timeout=120, cwd="/home/rjegj/projects/Project_HighSchool_apply_Analytics")
+                        VENV_PYTHON,
+                        os.path.join(ANALYTICS_ROOT, "src/statistical_deep_research.py")
+                    ], capture_output=True, text=True, timeout=120, cwd=ANALYTICS_ROOT)
                     if result.returncode == 0:
                         st.success("✅ Step 2 완료!")
                         st.info(result.stdout)
@@ -1266,9 +1281,9 @@ with tab11:
                 try:
                     import subprocess
                     result = subprocess.run([
-                        "/home/rjegj/projects/unified_venv/bin/python",
-                        "/home/rjegj/projects/Project_HighSchool_apply_Analytics/src/final_dashboard_generator.py"
-                    ], capture_output=True, text=True, timeout=120, cwd="/home/rjegj/projects/Project_HighSchool_apply_Analytics")
+                        VENV_PYTHON,
+                        os.path.join(ANALYTICS_ROOT, "src/final_dashboard_generator.py")
+                    ], capture_output=True, text=True, timeout=120, cwd=ANALYTICS_ROOT)
                     if result.returncode == 0:
                         st.success("✅ Step 3 완료!")
                         st.info(result.stdout)
@@ -1460,8 +1475,8 @@ with tab11:
                 try:
                     import subprocess
                     result = subprocess.run([
-                        "/home/rjegj/projects/unified_venv/bin/python",
-                        "/home/rjegj/projects/Project_HighSchool_apply_Dashboard/generators/sync_special_to_tracking.py",
+                        VENV_PYTHON,
+                        os.path.join(PROJECT_ROOT, "generators/sync_special_to_tracking.py"),
                         "2026"
                     ], capture_output=True, text=True, timeout=120)
                     if result.returncode == 0:
@@ -1478,8 +1493,8 @@ with tab11:
                 try:
                     import subprocess
                     result = subprocess.run([
-                        "/home/rjegj/projects/unified_venv/bin/python",
-                        "/home/rjegj/projects/Project_HighSchool_apply_Dashboard/generators/generate_special_report.py",
+                        VENV_PYTHON,
+                        os.path.join(PROJECT_ROOT, "generators/generate_special_report.py"),
                         "2026"
                     ], capture_output=True, text=True, timeout=120)
                     if result.returncode == 0:
@@ -1516,7 +1531,7 @@ with tab11:
                 try:
                     import subprocess
                     result = subprocess.run([
-                        "/home/rjegj/projects/unified_venv/bin/python",
+                        VENV_PYTHON,
                         "Project_HighSchool_apply_Dashboard/generators/generate_dashboard.py"
                     ], capture_output=True, text=True, timeout=60)
                     if result.returncode == 0:
@@ -1536,7 +1551,7 @@ with tab11:
                 try:
                     import subprocess
                     result = subprocess.run([
-                        "/home/rjegj/projects/unified_venv/bin/python",
+                        VENV_PYTHON,
                         "Project_HighSchool_apply_Analytics/src/advanced_analytics_engine.py"
                     ], capture_output=True, text=True, timeout=60)
                     if result.returncode == 0:
@@ -1981,4 +1996,3 @@ with col2:
 
 with col3:
     st.markdown(f"**데이터 연도:** {data_year}")
-

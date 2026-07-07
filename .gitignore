@@ -22,3 +22,5 @@ Thumbs.db
 
 # Output
 reports/
+logs/
+.auto_sync_snapshot.json

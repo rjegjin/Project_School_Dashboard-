@@ -77,22 +77,26 @@ def fetch_from_tracking(year: str):
     header = rows[0]
 
     # 필수 컬럼 인덱스
-    def col(name):
-        try:
-            return header.index(name)
-        except ValueError:
-            return None
+    def col(*names):
+        for name in names:
+            try:
+                return header.index(name)
+            except ValueError:
+                continue
+        return None
 
     c_cls    = col("반")      or 0
     c_num    = col("번호")    or 1
-    c_name   = col("이름")    or 2
+    c_name   = col("이름", "성명") or 2
     c_gender = col("성별")    or 3
-    c_type   = col("유형")
-    c_school = col("지원학교")
+    c_type   = col("최종유형", "유형")
+    c_school = col("최종학교", "지원학교")
     c_final  = col("최종")
+    c_grade  = col("학년")
+    c_early  = col("조기졸업여부")
 
     if c_type is None:
-        print("❌ '유형' 컬럼을 찾을 수 없습니다.")
+        print("❌ '최종유형' 또는 '유형' 컬럼을 찾을 수 없습니다.")
         return []
 
     students = []
@@ -106,6 +110,8 @@ def fetch_from_tracking(year: str):
         type_val   = get(c_type)
         school_val = get(c_school)
         final_val  = get(c_final)
+        grade_val  = get(c_grade)
+        early_grad = get(c_early).upper() == "O"
 
         if not type_val:
             continue  # 유형 없는 학생 제외
@@ -125,6 +131,8 @@ def fetch_from_tracking(year: str):
             "type":   type_val,
             "school": school_val or type_val,
             "result": result,
+            "grade": grade_val,
+            "early_grad": early_grad,
         })
 
     print(f"  → {len(students)}명 로드 완료")
@@ -210,13 +218,20 @@ def generate_html(students, title: str, filepath: str, year: str) -> None:
     cards_html = ""
     for s in students:
         gender_cls = "text-blue-600 bg-blue-50" if s["gender"] == "남" else "text-red-500 bg-red-50"
+        class_label = f"{s['class']}반 {s['num']}번"
+        if s.get("early_grad"):
+            grade_text = f"{s.get('grade') or '2'}학년"
+            class_label = f"{grade_text} {class_label}"
+            early_badge = f'<span class="ml-2 px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 text-[10px] font-extrabold">조기졸업</span>'
+        else:
+            early_badge = ""
         card = f"""
         <div class="student-card bg-white rounded-xl p-5 border {_card_border(s['result'])} transition-all duration-300 shadow-sm flex flex-col justify-between"
              data-type="{s['type']}">
             <div>
                 <div class="flex justify-between items-start mb-3">
                     <div>
-                        <span class="text-xs font-bold text-gray-400">{s['class']}반 {s['num']}번</span>
+                        <span class="text-xs font-bold text-gray-400">{class_label}{early_badge}</span>
                         <h3 class="text-lg font-extrabold text-gray-800 mt-0.5">{s['name']}</h3>
                     </div>
                     <span class="px-2 py-1 rounded text-xs font-bold {gender_cls}">{s['gender']}</span>

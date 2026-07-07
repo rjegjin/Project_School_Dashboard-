@@ -1,0 +1,112 @@
+{
+  "created_at": "2026-06-09T20:55:09",
+  "spreadsheet_id": "14VeC3Dxj0Ou5-ddWTwfzktuWfB0Eoz_2CcDwNZPVEH0",
+  "spreadsheet_title": "2026학년도 목일중 고입 진학 현황",
+  "backup_dir": "/home/rjegj/projects/Project_HighSchool_apply_Dashboard/backups/admission_stage_20260609_205508",
+  "drive_copy": null,
+  "csv_exports": [
+    {
+      "sheet": "📌 메인",
+      "path": "/home/rjegj/projects/Project_HighSchool_apply_Dashboard/backups/admission_stage_20260609_205508/__메인.csv",
+      "rows": 46,
+      "cols": 5
+    },
+    {
+      "sheet": "입시_트래킹",
+      "path": "/home/rjegj/projects/Project_HighSchool_apply_Dashboard/backups/admission_stage_20260609_205508/입시_트래킹.csv",
+      "rows": 433,
+      "cols": 38
+    },
+    {
+      "sheet": "입시 진행 현황",
+      "path": "/home/rjegj/projects/Project_HighSchool_apply_Dashboard/backups/admission_stage_20260609_205508/입시_진행_현황.csv",
+      "rows": 388,
+      "cols": 9
+    },
+    {
+      "sheet": "301",
+      "path": "/home/rjegj/projects/Project_HighSchool_apply_Dashboard/backups/admission_stage_20260609_205508/301.csv",
+      "rows": 33,
+      "cols": 29
+    },
+    {
+      "sheet": "302",
+      "path": "/home/rjegj/projects/Project_HighSchool_apply_Dashboard/backups/admission_stage_20260609_205508/302.csv",
+      "rows": 33,
+      "cols": 29
+    },
+    {
+      "sheet": "303",
+      "path": "/home/rjegj/projects/Project_HighSchool_apply_Dashboard/backups/admission_stage_20260609_205508/303.csv",
+      "rows": 33,
+      "cols": 29
+    },
+    {
+      "sheet": "304",
+      "path": "/home/rjegj/projects/Project_HighSchool_apply_Dashboard/backups/admission_stage_20260609_205508/304.csv",
+      "rows": 32,
+      "cols": 29
+    },
+    {
+      "sheet": "305",
+      "path": "/home/rjegj/projects/Project_HighSchool_apply_Dashboard/backups/admission_stage_20260609_205508/305.csv",
+      "rows": 34,
+      "cols": 30
+    },
+    {
+      "sheet": "306",
+      "path": "/home/rjegj/projects/Project_HighSchool_apply_Dashboard/backups/admission_stage_20260609_205508/306.csv",
+      "rows": 32,
+      "cols": 29
+    },
+    {
+      "sheet": "307",
+      "path": "/home/rjegj/projects/Project_HighSchool_apply_Dashboard/backups/admission_stage_20260609_205508/307.csv",
+      "rows": 32,
+      "cols": 29
+    },
+    {
+      "sheet": "308",
+      "path": "/home/rjegj/projects/Project_HighSchool_apply_Dashboard/backups/admission_stage_20260609_205508/308.csv",
+      "rows": 32,
+      "cols": 29
+    },
+    {
+      "sheet": "309",
+      "path": "/home/rjegj/projects/Project_HighSchool_apply_Dashboard/backups/admission_stage_20260609_205508/309.csv",
+      "rows": 36,
+      "cols": 29
+    },
+    {
+      "sheet": "310",
+      "path": "/home/rjegj/projects/Project_HighSchool_apply_Dashboard/backups/admission_stage_20260609_205508/310.csv",
+      "rows": 32,
+      "cols": 29
+    },
+    {
+      "sheet": "311",
+      "path": "/home/rjegj/projects/Project_HighSchool_apply_Dashboard/backups/admission_stage_20260609_205508/311.csv",
+      "rows": 32,
+      "cols": 29
+    },
+    {
+      "sheet": "312",
+      "path": "/home/rjegj/projects/Project_HighSchool_apply_Dashboard/backups/admission_stage_20260609_205508/312.csv",
+      "rows": 33,
+      "cols": 29
+    },
+    {
+      "sheet": "313",
+      "path": "/home/rjegj/projects/Project_HighSchool_apply_Dashboard/backups/admission_stage_20260609_205508/313.csv",
+      "rows": 32,
+      "cols": 29
+    },
+    {
+      "sheet": "314",
+      "path": "/home/rjegj/projects/Project_HighSchool_apply_Dashboard/backups/admission_stage_20260609_205508/314.csv",
+      "rows": 33,
+      "cols": 29
+    }
+  ],
+  "drive_copy_error": "<HttpError 403 when requesting https://www.googleapis.com/drive/v3/files/14VeC3Dxj0Ou5-ddWTwfzktuWfB0Eoz_2CcDwNZPVEH0/copy?fields=id%2Cname%2CwebViewLink&alt=json returned \"User rate limit exceeded.\". Details: \"[{'message': 'User rate limit exceeded.', 'domain': 'usageLimits', 'reason': 'userRateLimitExceeded'}]\">"
+}
