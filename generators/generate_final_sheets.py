@@ -91,19 +91,19 @@ def main():
         return row[col_idx].strip() if col_idx is not None and col_idx < len(row) else ""
 
     # classify_school 결과를 섹션 타입으로 매핑
-    def map_to_section_type(classified_type, is_early_slot):
-        """classify_school 반환값을 EARLY/LATE_SECTIONS의 섹션 타입으로 변환."""
+    def map_to_section_type(classified_type):
+        """classify_school 반환값을 EARLY/LATE_SECTIONS의 섹션 타입으로 변환. 미분류("") 반환 시 None."""
         if classified_type == "예술계고":
             return "예고"
         elif classified_type == "영재고":
             # ponytail: 영재고 slot 전용; EARLY_SECTIONS에 전용 섹션 없으므로 과학고 섹션으로 통합
             return "과학고"
         elif classified_type == "":
-            # 미분류는 후기 비평준화고로
-            return "비평준화고"
+            return None  # 미분류 플래그: 별도 수집
         return classified_type
 
     passed = defaultdict(lambda: defaultdict(list))  # [early/late][type] = [students]
+    unclassified = []  # 미분류 학교들 (조용한 누락 방지)
 
     for r in rows[1:]:
         if len(r) < 3 or not get(r, "성명"):
@@ -120,8 +120,19 @@ def main():
             # 학교 유형 결정: 고정 유형 또는 classify_school
             raw_type = fixed_type or classify_school(school.split(",")[0])
 
-            # 섹션 타입으로 매핑
-            school_type = map_to_section_type(raw_type, True)
+            # 섹션 타입으로 매핑 (미분류는 None)
+            school_type = map_to_section_type(raw_type)
+
+            if school_type is None:
+                # 미분류: 경고 리스트에 수집, 시트엔 기재하지 않음
+                slot_name = school_col.replace("_접수", "")
+                unclassified.append({
+                    "반": get(r, "반"),
+                    "성명": get(r, "성명"),
+                    "슬롯": slot_name,
+                    "학교명": school,
+                })
+                continue
 
             student = {
                 "반": get(r, "반"),
@@ -145,6 +156,14 @@ def main():
     late_total = sum(len(v) for v in passed["late"].values())
     print(f"  → 전기고 합격자: {early_total}명")
     print(f"  → 후기고 합격자: {late_total}명")
+
+    # 미분류 경고 (조용한 누락 방지)
+    if unclassified:
+        print(f"\n{'⚠'*30}")
+        print(f"⚠ 미분류 학교 — 시트 미기재, school_types.py SCHOOL_TYPE_OVERRIDES에 추가 후 재실행 필요:")
+        for item in unclassified:
+            print(f"  {item['반']}/{item['성명']} ({item['슬롯']}): {item['학교명']}")
+        print(f"{'⚠'*30}\n")
 
     # ── Step 2. 전기고 최종 합불 시트 업데이트 ────────
     print(f"\n[2/3] 전기고 최종 합불 시트 업데이트 중...")
