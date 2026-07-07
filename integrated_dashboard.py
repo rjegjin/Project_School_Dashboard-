@@ -49,12 +49,26 @@ def load_2026_data():
         tracking_data = tracking_sht.get_all_values()
 
         df = pd.DataFrame(tracking_data[1:], columns=tracking_data[0])
-        if '최종유형' in df.columns:
-            base_type = df['유형'] if '유형' in df.columns else ''
-            df['유형'] = df['최종유형'].where(df['최종유형'].astype(str).str.strip() != '', base_type)
-        if '최종학교' in df.columns:
-            base_school = df['지원학교'] if '지원학교' in df.columns else ''
-            df['지원학교'] = df['최종학교'].where(df['최종학교'].astype(str).str.strip() != '', base_school)
+
+        # 표시용 유형/지원학교: 최종배정 > 후기 > 전기 > 영재고 > 희망 (늦은 단계 우선)
+        def _first_nonempty(*series_list):
+            out = pd.Series([""] * len(df), index=df.index)
+            for s in series_list:
+                if s is None:
+                    continue
+                s = s.astype(str).str.strip()
+                out = out.where(out != "", s)
+            return out
+
+        def _col(name):
+            return df[name] if name in df.columns else None
+
+        df["지원학교"] = _first_nonempty(
+            _col("최종배정학교"), _col("후기_접수학교"), _col("전기_접수학교"), _col("영재고_접수"), _col("희망학교"), _col("지원학교")
+        )
+        df["유형"] = _first_nonempty(
+            _col("후기_유형"), _col("전기_유형"), _col("희망유형"), _col("유형")
+        )
         return df
     except Exception as e:
         st.error(f"2026 데이터 로드 실패: {e}")
@@ -462,7 +476,7 @@ with tab0:
 # TAB 1: 전체 현황
 # ──────────────────────────────────────────
 with tab1:
-    st.header("📈 전체 진학현황")
+    st.header("📈 전체 현황 (기준: 최종배정 > 접수 > 희망)")
 
     if not df_full.empty:
         # 통계 카드 (df_full 기준 - 전체 데이터)
@@ -538,7 +552,7 @@ with tab1:
 # TAB 2: 전기고
 # ──────────────────────────────────────────
 with tab2:
-    st.header("🎯 전기고 진학현황")
+    st.header("🎯 전기고 진학현황 (기준: 접수 우선, 미접수는 희망)")
     
     if not df.empty and '유형' in df.columns:
         early_types = ['과학고', '예술계고', '특성화고', '영재고']
@@ -601,7 +615,7 @@ with tab2:
 # TAB 3: 후기고
 # ──────────────────────────────────────────
 with tab3:
-    st.header("🍂 후기고 진학현황")
+    st.header("🍂 후기고 진학현황 (기준: 접수 우선, 미접수는 희망)")
     
     if not df.empty and '유형' in df.columns:
         late_types = ['자사고', '외고/국제고', '일반고', '비평준화고']
@@ -1842,7 +1856,7 @@ if tab7 is not None:
 # ──────────────────────────────────────────
 if tab_progress is not None:
     with tab_progress:
-        st.header("📋 입시 진행 현황")
+        st.header("📋 입시 진행 현황 (기준: 희망 + 시기 슬롯)")
 
         progress_df = load_2026_progress_data()
 

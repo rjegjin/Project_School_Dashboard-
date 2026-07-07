@@ -522,8 +522,8 @@ def fetch_tracking_snapshot() -> dict:
         header = rows[0]
         data_rows = [r for r in rows[1:] if any(c.strip() for c in r)]
 
-        type_col = _preferred_col(header, "최종유형", "유형")
-        school_col = _preferred_col(header, "최종학교", "지원학교")
+        type_col = _preferred_col(header, "희망유형", "유형")
+        school_col = _col(header, "최종배정학교", "후기_접수학교", "전기_접수학교", "영재고_접수", "희망학교", "지원학교")
 
         type_counts: dict[str, int] = {}
         decided = 0
