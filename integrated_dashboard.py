@@ -1861,87 +1861,94 @@ if tab_progress is not None:
         progress_df = load_2026_progress_data()
 
         if not progress_df.empty:
+            # 헬퍼: 시기 슬롯 nonempty 체크
+            def slot_nonempty(row):
+                return any(str(row.get(col, '')).strip() for col in ['영재고', '전기', '후기'])
+
+            # 헬퍼: 슬롯이 "최종합" 결과를 포함하는지 체크
+            def has_final_pass(row):
+                for col in ['영재고', '전기', '후기']:
+                    cell = str(row.get(col, '')).strip()
+                    if cell.endswith('최종합'):
+                        return True
+                return False
+
             # 데이터 정제
-            progress_df['지원유형'] = progress_df.get('지원유형', '')
-            progress_df['최종'] = progress_df.get('최종', '')
+            progress_df['희망유형'] = progress_df.get('희망유형', '')
+            progress_df['비고'] = progress_df.get('비고', '')
+            progress_df['최종배정'] = progress_df.get('최종배정', '')
 
             # 통계
             col1, col2, col3, col4 = st.columns(4)
 
+            total = len(progress_df)
+            received = progress_df.apply(slot_nonempty, axis=1).sum()
+            final_pass = progress_df.apply(has_final_pass, axis=1).sum()
+            assigned = (progress_df['최종배정'] != '').sum()
+
             with col1:
-                total = len(progress_df)
-                st.metric("📊 총 지원 현황", f"{total}명", "유형별")
+                st.metric("📊 총 인원", f"{total}명", "")
 
             with col2:
-                passed = (progress_df['최종'] == '합격').sum()
-                pct = (passed / total * 100) if total > 0 else 0
-                st.metric("🎉 합격자", f"{passed}명", f"{pct:.1f}%")
+                st.metric("📬 접수 진행", f"{received}명", f"{(received/total*100):.1f}%" if total > 0 else "")
 
             with col3:
-                if '지원유형' in progress_df.columns:
-                    types = progress_df['지원유형'].nunique()
-                    st.metric("🎯 지원 유형", f"{types}가지", "")
-                else:
-                    st.metric("🎯 지원 유형", "0가지", "")
+                st.metric("🎉 최종합", f"{final_pass}명", f"{(final_pass/total*100):.1f}%" if total > 0 else "")
 
             with col4:
-                if '반' in progress_df.columns:
-                    classes = progress_df['반'].nunique()
-                    st.metric("🏫 참여 반", f"{classes}반", "")
-                else:
-                    st.metric("🏫 참여 반", "0반", "")
+                st.metric("✅ 배정 완료", f"{assigned}명", f"{(assigned/total*100):.1f}%" if total > 0 else "")
 
             st.divider()
 
-            # 지원 유형별 분포
+            # 희망유형 분포 & 진행 단계 분포
             col1, col2 = st.columns(2)
 
             with col1:
-                if '지원유형' in progress_df.columns:
-                    type_dist = progress_df['지원유형'].value_counts().reset_index()
-                    type_dist.columns = ['지원유형', '인원']
+                if '희망유형' in progress_df.columns:
+                    type_dist = progress_df[progress_df['희망유형'] != '']['희망유형'].value_counts().reset_index()
+                    type_dist.columns = ['희망유형', '인원']
 
                     fig = px.pie(
                         type_dist,
                         values='인원',
-                        names='지원유형',
-                        title="지원 유형별 분포"
+                        names='희망유형',
+                        title="희망유형 분포"
                     )
                     st.plotly_chart(fig, use_container_width=True)
 
             with col2:
-                if '최종' in progress_df.columns:
-                    final_dist = progress_df['최종'].value_counts().reset_index()
-                    final_dist.columns = ['최종결과', '인원']
+                if '비고' in progress_df.columns:
+                    status_dist = progress_df[progress_df['비고'] != '']['비고'].value_counts().reset_index()
+                    status_dist.columns = ['진행상태', '인원']
 
-                    # 합격/불합격만 집계 (빈 값 제외)
-                    final_dist = final_dist[final_dist['최종결과'] != '']
-
-                    if not final_dist.empty:
+                    if not status_dist.empty:
                         fig = px.bar(
-                            final_dist,
-                            x='최종결과',
+                            status_dist,
+                            x='진행상태',
                             y='인원',
-                            title="최종 결과 분포",
-                            color='최종결과',
-                            color_discrete_map={'합격': '#1f77b4', '불합격': '#ff7f0e'}
+                            title="진행 단계 분포"
                         )
                         st.plotly_chart(fig, use_container_width=True)
 
             st.divider()
 
-            # 지원 유형별 상세 통계
-            st.subheader("📈 지원 유형별 상세 통계")
+            # 희망유형별 상세 통계
+            st.subheader("📈 희망유형별 상세 통계")
 
-            if '지원유형' in progress_df.columns:
-                type_stats = progress_df.groupby('지원유형').agg({
+            if '희망유형' in progress_df.columns:
+                type_stats = progress_df.groupby('희망유형').agg({
                     '성명': 'count',
                 }).rename(columns={'성명': '총인원'})
 
-                if '최종' in progress_df.columns:
-                    type_stats['합격'] = progress_df[progress_df['최종'] == '합격'].groupby('지원유형').size()
-                    type_stats['합격'] = type_stats['합격'].fillna(0).astype(int)
-                    type_stats['합격률(%)'] = (type_stats['합격'] / type_stats['총인원'] * 100).round(1)
+                type_stats['접수'] = progress_df.groupby('희망유형').apply(
+                    lambda grp: grp.apply(slot_nonempty, axis=1).sum()
+                )
+                type_stats['최종합'] = progress_df.groupby('희망유형').apply(
+                    lambda grp: grp.apply(has_final_pass, axis=1).sum()
+                )
+                type_stats['배정'] = progress_df.groupby('희망유형').apply(
+                    lambda grp: (grp['최종배정'] != '').sum()
+                )
 
                 st.dataframe(type_stats, use_container_width=True)
 
@@ -1951,7 +1958,7 @@ if tab_progress is not None:
             st.subheader("📋 전체 지원 현황")
 
             # 표시할 컬럼 선택
-            display_cols = ['반', '번호', '성명', '성별', '지원유형', '1차', '2차', '최종']
+            display_cols = ['반', '번호', '성명', '성별', '희망유형', '영재고', '전기', '후기', '최종배정', '비고']
             available_cols = [col for col in display_cols if col in progress_df.columns]
 
             st.dataframe(
