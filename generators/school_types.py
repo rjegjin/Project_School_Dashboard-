@@ -6,7 +6,7 @@ SCHOOL_TYPE_OVERRIDES에 등록한다. 미분류("")는 sync가 '확인필요'�
 """
 
 # ponytail: 수동 사전 = 미분류 플래그가 뜰 때 채우는 calibration knob
-SCHOOL_TYPE_OVERRIDES = {
+SCHOOL_TYPE_OVERRIDES: dict[str, str] = {
     "하나고": "자사고",
     "민족사관고": "자사고",
     "민사고": "자사고",
@@ -37,7 +37,8 @@ def classify_school(name: str) -> str:
     cleaned = str(name).strip()
     if not cleaned:
         return ""
-    base = cleaned.replace("등학교", "").rstrip()  # "고등학교" -> "고"
+    # 등학교 제거: "고등학교" -> "고"
+    base = cleaned.replace("등학교", "").rstrip()
     for key, type_name in SCHOOL_TYPE_OVERRIDES.items():
         if key in base:
             return type_name

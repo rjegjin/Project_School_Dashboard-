@@ -194,10 +194,13 @@ def load_class_sources(ss) -> list[SourceStudent]:
         return []
 
     # ponytail: 14개 시트 개별 read가 분당 쿼터를 치던 원인 — 1회 batch로 통합
+    # ponytail: 80행 상한 (범위 확장 필요시 A1:AB{MAX_ROWS} 수정)
     response = ss.values_batch_get(ranges=[f"'{t}'!A1:AB80" for t in class_titles])
     students: list[SourceStudent] = []
     for title, value_range in zip(class_titles, response["valueRanges"]):
         rows = value_range.get("values", [])
+        if len(rows) >= 80:
+            print(f"⚠ {title}: 80행 상한 도달 — 범위 확장 필요")
         data_start = 2 if len(rows) > 2 and len(rows[1]) > 2 and not norm(rows[1][2]) else 1
         for row_idx, row in enumerate(rows[data_start:], start=data_start + 1):
             if len(row) < 3 or not norm(row[2]):

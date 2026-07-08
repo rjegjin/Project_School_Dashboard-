@@ -193,62 +193,64 @@ def fetch_sync_data_with_retry() -> tuple[object, dict[str, object], list[list[s
 
 
 def build_progress_rows(tracking_rows: list[list[str]]) -> list[list[str]]:
+    """입시_트래킹에서 진행현황 10-col 행 생성 (slot-based format).
+
+    포맷: 반/번호/성명/성별/희망유형/영재고/전기/후기/최종배정/비고
+    - 희망유형이 없거나 모든 slot 비어있으면 행 제외
+    - 각 slot cell = "학교 결과".strip()
+    - 비고 = 데이터상태
+    """
     if not tracking_rows:
-        return [["반", "번호", "성명", "성별", "지원유형", "1차", "2차", "최종", "비고"]]
+        return [["반", "번호", "성명", "성별", "희망유형", "영재고", "전기", "후기", "최종배정", "비고"]]
 
     header = tracking_rows[0]
     c_cls = _col(header, "반", default=0)
     c_num = _col(header, "번호", default=1)
     c_name = _col(header, "성명", "이름", default=2)
     c_gender = _col(header, "성별", default=3)
-    c_type = _preferred_col(header, "최종유형", "유형")
-    c_first = _col(header, "1차")
-    c_second = _col(header, "2차")
-    c_final = _col(header, "최종")
-    c_school = _preferred_col(header, "최종학교", "지원학교")
-    c_major = _col(header, "학과")
-    c_grade = _col(header, "학년")
-    c_early = _col(header, "조기졸업여부")
+    c_hope_type = _col(header, "희망유형")
+    c_gifted_school = _col(header, "영재고_접수")
+    c_gifted_result = _col(header, "영재고_결과")
+    c_early_school = _col(header, "전기_접수학교")
+    c_late_school = _col(header, "후기_접수학교")
+    c_early_result = _col(header, "전기_결과")
+    c_late_result = _col(header, "후기_결과")
+    c_final_assign = _col(header, "최종배정학교")
+    c_data_status = _col(header, "데이터상태")
 
-    required = {
-        "최종유형/유형": c_type,
-        "1차": c_first,
-        "2차": c_second,
-        "최종": c_final,
-    }
-    missing = [name for name, idx in required.items() if idx is None]
-    if missing:
-        raise ValueError(f"입시_트래킹 필수 컬럼 없음: {', '.join(missing)}")
+    progress_rows = [["반", "번호", "성명", "성별", "희망유형", "영재고", "전기", "후기", "최종배정", "비고"]]
 
-    progress_rows = [["반", "번호", "성명", "성별", "지원유형", "1차", "2차", "최종", "비고"]]
+    def slot_cell(school_col: int | None, result_col: int | None, row: list[str]) -> str:
+        """Slot cell = "학교 결과".strip()"""
+        school = _get(row, school_col)
+        result = _get(row, result_col)
+        return f"{school} {result}".strip()
+
     for row in tracking_rows[1:]:
         if not _get(row, c_name):
             continue
 
-        school_type = _get(row, c_type)
-        if not school_type:
-            continue
+        hope_type = _get(row, c_hope_type)
+        gifted = slot_cell(c_gifted_school, c_gifted_result, row)
+        early = slot_cell(c_early_school, c_early_result, row)
+        late = slot_cell(c_late_school, c_late_result, row)
+        assigned = _get(row, c_final_assign)
 
-        school = _get(row, c_school)
-        major = _get(row, c_major)
-        grade = _get(row, c_grade)
-        early_grad = _get(row, c_early).upper() == "O"
-        remark = f"조기졸업({grade}학년)" if early_grad and grade else ("조기졸업" if early_grad else "")
-        if school:
-            remark += f" / 지원: {school}" if remark else f"지원: {school}"
-        if major:
-            remark += f" / {major}" if remark else f"학과: {major}"
+        # 희망유형 또는 어떤 slot이라도 비어있지 않으면 포함
+        if not (hope_type or gifted or early or late or assigned):
+            continue
 
         progress_rows.append([
             _get(row, c_cls),
             _get(row, c_num),
             _get(row, c_name),
             _get(row, c_gender),
-            school_type,
-            _get(row, c_first),
-            _get(row, c_second),
-            _get(row, c_final),
-            remark,
+            hope_type,
+            gifted,
+            early,
+            late,
+            assigned,
+            _get(row, c_data_status),
         ])
 
     return progress_rows
@@ -267,6 +269,12 @@ def update_progress_sheet(ss, worksheets: dict[str, object], progress_rows: list
 
 
 def dashboard_students_from_rows(tracking_rows: list[list[str]]) -> list[dict[str, str]]:
+    """입시_트래킹에서 대시보드용 학생 데이터 추출 (slot-based schema).
+
+    type: 희망유형 우선, 미존재 시 유형(legacy) fallback
+    school: cascade 최종배정학교 > 후기_접수학교 > 전기_접수학교 > 영재고_접수 > 희망학교 > 지원학교
+    result: 최종배정학교 nonempty 또는 slot 결과 중 "최종합" 있으면 "합격"
+    """
     if not tracking_rows:
         return []
 
@@ -275,29 +283,49 @@ def dashboard_students_from_rows(tracking_rows: list[list[str]]) -> list[dict[st
     c_num = _col(header, "번호", default=1)
     c_name = _col(header, "이름", "성명", default=2)
     c_gender = _col(header, "성별", default=3)
-    c_type = _preferred_col(header, "최종유형", "유형")
-    c_school = _preferred_col(header, "최종학교", "지원학교")
-    c_final = _col(header, "최종")
+    c_hope_type = _col(header, "희망유형")
+    c_legacy_type = _col(header, "유형")
+    c_gifted_school = _col(header, "영재고_접수")
+    c_early_school = _col(header, "전기_접수학교")
+    c_late_school = _col(header, "후기_접수학교")
+    c_early_result = _col(header, "전기_결과")
+    c_late_result = _col(header, "후기_결과")
+    c_final_assign = _col(header, "최종배정학교")
+    c_hope_school = _col(header, "희망학교")
+    c_legacy_school = _col(header, "지원학교")
     c_grade = _col(header, "학년")
     c_early = _col(header, "조기졸업여부")
-    if c_type is None:
-        raise ValueError("입시_트래킹 '최종유형' 또는 '유형' 컬럼 없음")
 
     students = []
     for row in tracking_rows[1:]:
         if not _get(row, c_name):
             continue
 
-        type_val = _get(row, c_type)
+        # Type: 희망유형 > 유형(legacy)
+        type_val = _get(row, c_hope_type) or _get(row, c_legacy_type)
         if not type_val:
             continue
 
-        final_val = _get(row, c_final)
+        # School cascade: 최종배정 > 후기 > 전기 > 영재고 > 희망 > 지원
+        school_val = (
+            _get(row, c_final_assign)
+            or _get(row, c_late_school)
+            or _get(row, c_early_school)
+            or _get(row, c_gifted_school)
+            or _get(row, c_hope_school)
+            or _get(row, c_legacy_school)
+            or type_val
+        )
+
+        # Result: 최종배정 또는 slot 결과에 "최종합" 있으면 "합격"
         result = ""
-        if final_val.lower() in ["합격", "pass", "o", "○", "yes", "v"]:
+        if _get(row, c_final_assign):
             result = "합격"
-        elif final_val.lower() in ["불합격", "fail", "x", "no"]:
-            result = "불합격"
+        else:
+            for col in [c_early_result, c_late_result]:
+                if col is not None and "최종합" in _get(row, col):
+                    result = "합격"
+                    break
 
         students.append({
             "class": _get(row, c_cls),
@@ -305,7 +333,7 @@ def dashboard_students_from_rows(tracking_rows: list[list[str]]) -> list[dict[st
             "name": _get(row, c_name),
             "gender": _get(row, c_gender),
             "type": type_val,
-            "school": _get(row, c_school) or type_val,
+            "school": school_val,
             "result": result,
             "grade": _get(row, c_grade),
             "early_grad": _get(row, c_early).upper() == "O",
@@ -413,17 +441,34 @@ def special_report_students_from_rows(
         header = tracking_rows[0]
         tc_cls = _col(header, "반", default=0)
         tc_num = _col(header, "번호", default=1)
-        tc_type = _preferred_col(header, "최종유형", "유형")
-        tc_school = _preferred_col(header, "최종학교", "지원학교")
-        tc_final = _col(header, "최종")
+        tc_hope_type = _col(header, "희망유형")
+        tc_legacy_type = _col(header, "유형")
+        tc_gifted_school = _col(header, "영재고_접수")
+        tc_early_school = _col(header, "전기_접수학교")
+        tc_late_school = _col(header, "후기_접수학교")
+        tc_final_assign = _col(header, "최종배정학교")
+        tc_hope_school = _col(header, "희망학교")
+        tc_legacy_school = _col(header, "지원학교")
+        tc_status = _col(header, "최종")  # Legacy status column for special report rendering
         for row in tracking_rows[1:]:
             key = (_get(row, tc_cls), _get(row, tc_num))
             if not key[1]:
                 continue
+            # Type: 희망유형 > 유형(legacy)
+            type_val = _get(row, tc_hope_type) or _get(row, tc_legacy_type)
+            # School cascade: 최종배정 > 후기 > 전기 > 영재고 > 희망 > 지원
+            school_val = (
+                _get(row, tc_final_assign)
+                or _get(row, tc_late_school)
+                or _get(row, tc_early_school)
+                or _get(row, tc_gifted_school)
+                or _get(row, tc_hope_school)
+                or _get(row, tc_legacy_school)
+            )
             tracking_map[key] = {
-                "type": _get(row, tc_type),
-                "school": _get(row, tc_school),
-                "status": _get(row, tc_final),
+                "type": type_val,
+                "school": school_val,
+                "status": _get(row, tc_status),  # For HTML rendering
             }
 
     students = []

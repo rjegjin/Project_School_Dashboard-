@@ -82,10 +82,13 @@ def main():
         total_special = 0
         print(f"  → 전체 {total_students}명 중 특별전형 해당 {total_special}명")
     else:
+        # ponytail: 80행 상한 (범위 확장 필요시 A1:AB{MAX_ROWS} 수정)
         response = ss.values_batch_get(ranges=[f"'{t}'!A1:AB80" for t in class_titles])
 
         for title, value_range in zip(class_titles, response["valueRanges"]):
             rows = value_range.get("values", [])
+            if len(rows) >= 80:
+                print(f"⚠ {title}: 80행 상한 도달 — 범위 확장 필요")
             # 반별 시트 헤더: row0=HEADER1, row1=HEADER2, row2+=학생
             data_start = 2
             if len(rows) <= data_start:
