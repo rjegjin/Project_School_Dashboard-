@@ -14,10 +14,9 @@
 ### `입시_트래킹`
 | 파일 | 읽기/쓰기 | 역할 |
 |------|-----------|------|
-| `generators/sync_type_to_tracking.py` | **쓰기** | 반별 시트(301~314) → 유형, 지원학교 자동 감지 후 입력 (빈 셀만) |
+| `generators/sync_type_to_tracking.py` | **쓰기** | 반별 시트(301~314) 희망 H:P + 시기 슬롯 V:AA → 희망/슬롯/데이터상태 갱신 |
 | `generators/generate_final_sheets.py` | 읽기 | 최종=합격인 학생 추출 → 전기고_최종/후기고_최종 생성 |
 | `generators/build_progress_from_tracking.py` | 읽기 | 유형 있는 학생 전원 → 입시 진행 현황 생성 |
-| `generators/create_progress_tracker.py` | 읽기 | 입시 진행 현황 생성 (build_progress_from_tracking의 구버전) |
 | `generators/init_2026_spreadsheet.py` | **쓰기** | 시트 최초 생성 시 헤더 + 샘플 데이터 입력 (아래 주의 참조) |
 | `generators/cloud_function_main.py` | 읽기 | Cloud Function 트리거용 (미사용) |
 | `integrated_dashboard.py` | 읽기 | 대시보드 전체 현황/전기고/후기고/반별/필터링 탭 |
@@ -84,7 +83,7 @@
 [cron 07:30 평일]
 auto_sync.py
   ├── 1단계: sync_form_to_class_sheets.py    (설문지 → 반별 시트 301~314)
-  ├── 2단계: sync_type_to_tracking.py         (반별 시트 → 입시_트래킹 유형/지원학교)
+  ├── 2단계: sync_type_to_tracking.py         (반별 시트 희망 H:P + 슬롯 V:AA → 입시_트래킹 동기화)
   ├── 3단계: sync_special_to_tracking.py      (반별 시트 → 특별전형_트래킹)  ← NEW
   ├── 4단계: build_progress_from_tracking.py  (입시_트래킹 → 입시 진행 현황)
   └── 5단계: generate_dashboard.py            (입시_트래킹 → reports/ HTML 일반 3개)
