@@ -38,6 +38,14 @@ def get_sheets_client():
 # ==========================================
 # 데이터 로드
 # ==========================================
+def _norm_class(df):
+    """반 표기 통일: '01' → '1'. zero-pad된 값이 별도 반으로 집계되는 것을 막는다.
+    ponytail: 시트 값을 읽는 쪽에서만 정규화한다 — 손입력이 다시 '01'로 들어와도 집계는 안 깨짐.
+    """
+    if "반" in df.columns:
+        df["반"] = df["반"].astype(str).str.strip().str.lstrip("0").replace("", pd.NA).fillna(df["반"])
+    return df
+
 @st.cache_data(ttl=300)
 def load_2026_data():
     """2026년 데이터 (Google Sheets - 입시_트래킹)"""
@@ -48,7 +56,7 @@ def load_2026_data():
         tracking_sht = ss.worksheet("입시_트래킹")
         tracking_data = tracking_sht.get_all_values()
 
-        df = pd.DataFrame(tracking_data[1:], columns=tracking_data[0])
+        df = _norm_class(pd.DataFrame(tracking_data[1:], columns=tracking_data[0]))
 
         # 표시용 유형/지원학교: 최종배정 > 후기 > 전기 > 영재고 > 희망 (늦은 단계 우선)
         def _first_nonempty(*series_list):
@@ -87,8 +95,7 @@ def load_2026_progress_data():
         if len(progress_data) < 2:
             return pd.DataFrame()
 
-        df = pd.DataFrame(progress_data[1:], columns=progress_data[0])
-        return df
+        return _norm_class(pd.DataFrame(progress_data[1:], columns=progress_data[0]))
     except Exception as e:
         return pd.DataFrame()
 
