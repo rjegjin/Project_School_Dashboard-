@@ -4,6 +4,7 @@ from google.oauth2.service_account import Credentials
 import pandas as pd
 import re
 import os
+import glob
 from datetime import datetime
 import plotly.express as px
 from io import BytesIO
@@ -249,6 +250,53 @@ def load_local_final_results(file_path):
     except Exception as e:
         st.error(f"❌ 파일 읽기 실패: {e}")
         return None
+
+def render_analytics_reports():
+    """Analytics(별개 repo)가 만든 HTML 리포트/차트를 대시보드에서 조회한다.
+
+    ANALYTICS_INTEGRATION.md의 Option A — 실행 파이프라인은 분리한 채
+    산출물만 임베드한다.
+    ponytail: 파일 스캔 + 임베드만. Excel을 다시 그리는 Option B는 배정
+    결과가 실제로 쌓인 뒤(12월 후기 배정 이후) 필요해지면 그때.
+    """
+    st.subheader("🔬 심층 분석 리포트 (Analytics)")
+
+    out_dir = os.path.join(ANALYTICS_ROOT, "output")
+    if not os.path.isdir(out_dir):
+        st.info("Analytics 산출물 폴더가 없습니다. [관리 도구]에서 파이프라인을 먼저 실행하세요.")
+        return
+
+    reports = sorted(
+        glob.glob(os.path.join(out_dir, "**", "*.html"), recursive=True),
+        key=os.path.getmtime, reverse=True,
+    )
+    charts = sorted(glob.glob(os.path.join(out_dir, "**", "*.png"), recursive=True))
+
+    if not reports and not charts:
+        st.info("아직 생성된 리포트가 없습니다. [관리 도구 → 심층 통계 분석]에서 실행하세요.")
+        return
+
+    if reports:
+        labels = {
+            f"{os.path.relpath(p, out_dir)}  ({datetime.fromtimestamp(os.path.getmtime(p)):%Y-%m-%d %H:%M})": p
+            for p in reports
+        }
+        picked = labels[st.selectbox("리포트 선택 (최신순)", list(labels), key="analytics_report")]
+
+        with open(picked, "rb") as f:
+            raw = f.read()
+        st.download_button(
+            "⬇️ 리포트 다운로드", data=raw,
+            file_name=os.path.basename(picked), mime="text/html",
+            key="analytics_dl",
+        )
+        st.components.v1.html(raw.decode("utf-8", errors="replace"), height=800, scrolling=True)
+
+    if charts:
+        with st.expander(f"📈 통계 차트 ({len(charts)}개)", expanded=False):
+            for path in charts:
+                st.image(path, caption=os.path.relpath(path, out_dir), use_container_width=True)
+
 
 # ==========================================
 # UI 구성
@@ -728,6 +776,9 @@ with tab4:
         st.dataframe(class_summary, use_container_width=True)
     else:
         st.info("반별 분석 데이터가 없습니다.")
+
+    st.divider()
+    render_analytics_reports()
 
 # ──────────────────────────────────────────
 # TAB 5: 입시 진행 현황 (2026만)
@@ -1313,6 +1364,40 @@ with tab11:
                         st.error(f"❌ 실패: {result.stderr}")
                 except Exception as e:
                     st.error(f"❌ 오류: {str(e)}")
+
+    # Step 4~6: 2026-03 작업분 — 위 Step1~3와 달리 헬퍼로 묶는다
+    def _run_analytics(script, key, label, hint):
+        if st.button(label, use_container_width=True, key=key):
+            st.info(hint)
+            with st.spinner(f"{label} 실행 중..."):
+                import subprocess
+                try:
+                    r = subprocess.run(
+                        [VENV_PYTHON, os.path.join(ANALYTICS_ROOT, "src", script)],
+                        capture_output=True, text=True, timeout=600, cwd=ANALYTICS_ROOT,
+                    )
+                except Exception as e:
+                    st.error(f"❌ 오류: {e}")
+                    return
+            if r.returncode == 0:
+                st.success("✅ 완료! [심층 분석] 탭에서 확인하세요")
+                st.info(r.stdout)
+            else:
+                st.error(f"❌ 실패: {r.stderr}")
+
+    col10, col11, col12 = st.columns(3)
+    with col10:
+        _run_analytics("ml_prediction_engine.py", "analytics_step4",
+                       "🤖 Step4: ML 합격예측",
+                       "RF+GBM 앙상블, StratifiedKFold(5)\n(Step5_ML예측모델.xlsx 생성)")
+    with col11:
+        _run_analytics("yearwise_visualization.py", "analytics_step5",
+                       "📅 Step5: 연도별 트렌드",
+                       "연도 스냅샷 저장 + 누적 트렌드 차트 4종\n(output/yearwise_trends/)")
+    with col12:
+        _run_analytics("auto_report_generator.py", "analytics_step6",
+                       "📑 Step6: 통합 리포트",
+                       "Step1~5 + 차트를 단일 HTML로 통합\n(output/Comprehensive_Report_YYYYMMDD.html)")
 
     st.divider()
 
