@@ -3,6 +3,7 @@ import gspread
 from google.oauth2.service_account import Credentials
 import pandas as pd
 import re
+import sys
 import os
 import glob
 from datetime import datetime
@@ -486,7 +487,8 @@ with st.sidebar:
 # 탭 구성
 # ==========================================
 if data_year == "2026 (실시간)":
-    tab0, tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, tab9, tab10, tab11 = st.tabs([  # 12개 탭
+    (tab0, tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, tab9, tab10,
+     tab12, tab11) = st.tabs([  # 13개 탭
         "📅 연간 일정",
         "📈 전체 현황",
         "🎯 전기고",
@@ -498,6 +500,7 @@ if data_year == "2026 (실시간)":
         "📋 데이터 검증",
         "📈 필터링 분석",
         "🎓 학교 분석",
+        "📝 학생부 점검",
         "🔧 관리 도구"
     ])
     tab_progress = None
@@ -510,7 +513,7 @@ else:
         "📊 심층 분석",
         "🔧 관리 도구"
     ])
-    tab5 = tab6 = tab7 = tab8 = tab9 = tab10 = tab_progress = None
+    tab5 = tab6 = tab7 = tab8 = tab9 = tab10 = tab12 = tab_progress = None
 
 # ──────────────────────────────────────────
 # TAB 0: 연간 일정
@@ -779,6 +782,68 @@ with tab4:
 
     st.divider()
     render_analytics_reports()
+
+# ──────────────────────────────────────────
+# TAB 12: 학생부 점검 (2026만)
+# ──────────────────────────────────────────
+if tab12 is not None:
+    with tab12:
+        st.header("📝 학생부 점검 대상")
+        st.caption(
+            "지원 유형에서 자동 판정합니다. 별도 입력 시트 없이 입시_트래킹만 봅니다. "
+            "판정 기준은 `generators/school_types.py`의 `RECORD_RULES` 표를 고치면 바뀝니다."
+        )
+
+        if df_full.empty:
+            st.info("입시_트래킹 데이터가 없습니다.")
+        else:
+            sys.path.insert(0, os.path.join(PROJECT_ROOT, "generators"))
+            from school_types import record_requirement
+
+            # 지원한 학교가 있으면 그것이 기준, 없으면 희망학교로 미리 본다
+            def _target(row):
+                for c in ("최종배정학교", "후기_접수학교", "전기_접수학교", "영재고_접수", "희망학교"):
+                    if c in row and str(row[c]).strip():
+                        return str(row[c]).strip()
+                return ""
+
+            rec = df_full.apply(
+                lambda r: record_requirement(str(r.get("희망유형", "")).strip(), _target(r)),
+                axis=1, result_type="expand",
+            )
+            view = pd.concat([df_full[["반", "번호", "성명", "희망유형"]], rec], axis=1)
+            view["대상학교"] = df_full.apply(_target, axis=1)
+
+            need = view[view["점검필요"] == "O"]
+            unsure = view[view["제출"] == "확인필요"]
+
+            c1, c2, c3 = st.columns(3)
+            c1.metric("점검 대상", f"{len(need)}명")
+            c2.metric("제출 불필요(일반고)", f"{len(view[view['제출'] == 'X'])}명")
+            c3.metric("유형 확인 필요", f"{len(unsure)}명")
+
+            if not unsure.empty:
+                st.warning(f"⚠️ 희망유형이 비었거나 알 수 없어 판정 못한 학생 {len(unsure)}명 — 먼저 채워야 합니다.")
+                st.dataframe(unsure[["반", "번호", "성명", "희망유형"]],
+                             use_container_width=True, hide_index=True)
+
+            st.subheader("반영학기별 점검 명단")
+            for term in sorted(need["반영학기"].unique()):
+                sub = need[need["반영학기"] == term]
+                with st.expander(f"{term} 반영 — {len(sub)}명", expanded=True):
+                    st.dataframe(
+                        sub[["반", "번호", "성명", "희망유형", "대상학교", "출력유형"]]
+                        .sort_values(["반", "번호"]),
+                        use_container_width=True, hide_index=True,
+                    )
+
+            st.download_button(
+                "⬇️ 점검 명단 CSV",
+                data=need.to_csv(index=False).encode("utf-8-sig"),
+                file_name=f"학생부_점검대상_{datetime.now():%Y%m%d}.csv",
+                mime="text/csv",
+            )
+
 
 # ──────────────────────────────────────────
 # TAB 5: 입시 진행 현황 (2026만)

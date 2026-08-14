@@ -24,3 +24,6 @@ Thumbs.db
 reports/
 logs/
 .auto_sync_snapshot.json
+
+# 학생 개인정보가 담긴 시트 스냅샷 — 원격에 올리지 않는다
+backups/
