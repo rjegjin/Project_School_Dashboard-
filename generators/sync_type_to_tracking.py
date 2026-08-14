@@ -23,7 +23,7 @@ from dataclasses import dataclass
 import gspread
 from google.oauth2.service_account import Credentials
 
-from school_types import classify_school
+from school_types import classify_school, normalize_school
 
 KEY_FILE = "/home/rjegj/projects/.secrets/service_key.json"
 SCOPES = [
@@ -65,6 +65,7 @@ SCHEMA_COLUMNS = [
     "학생ID",
     "희망유형",
     "희망학교",
+    "희망학교_표준명",
     "영재고_접수",
     "영재고_결과",
     "전기_접수학교",
@@ -464,6 +465,7 @@ def main() -> int:
                 "학생ID": source.student_id(args.year),
                 "희망유형": source.hope_type,
                 "희망학교": source.hope_school,
+                "희망학교_표준명": normalize_school(source.hope_school),
                 "영재고_접수": gifted.get("school", ""),
                 "영재고_결과": gifted.get("result", ""),
                 "전기_접수학교": early.get("school", ""),
